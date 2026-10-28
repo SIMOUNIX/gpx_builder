@@ -1,0 +1,589 @@
+# Architecture
+
+Status: **v1 — 2026-10-28.** This is the canonical design spec. It describes the system we are building. When the code and this document disagree, one of them is wrong and gets fixed in the same commit. `<App>` is a placeholder until the project has a name.
+
+v1 folds in a four-part review of v0 (agent design, desktop runtime, geo data, scope). The decision log (§20) records what changed and why.
+
+**What this is.** A local-first desktop app (macOS, Windows, Linux) where an AI planner agent designs outdoor trips and produces GPX routes. The user chats with the planner. The planner:
+
+1. gathers constraints;
+2. resolves places and points of interest to ids;
+3. asks a routing engine for geometry;
+4. validates the result with deterministic rules;
+5. writes a self-contained trip folder to disk.
+
+Inspired by the architecture of [LearnHarness](https://github.com/amosblomqvist/learnharness) (AGPL-3.0): hexagonal core, one writer per store, ack-and-steer sub-agents, derived state.
+
+---
+
+## 0. Non-goals
+
+- No backend we operate: no accounts, sync, sharing service or telemetry.
+- No turn-by-turn navigation on the trail. The output is GPX for apps that do that (OsmAnd, Komoot, Garmin).
+- No routing engine of our own. We call one; we don't build one.
+- No guarantee about legality or safety. Rules we can't verify are reported as "unverified — check locally", never asserted.
+- No mobile app.
+
+---
+
+## 1. Principles (in priority order)
+
+1. **Code mechanizes, LLMs judge.** The model decides intent: where to go, which places, which constraints matter. It **never produces or sees coordinates or geometry**; it works with ids. Routes come from a routing engine. Validation, GPX writing, distances and elevation are deterministic code.
+2. **Local-first.** All data is plain files on the user's disk.
+3. **Bring your own keys, or run fully local.** The user supplies their own LLM and routing keys, or points the app at a local model (Ollama, LM Studio).
+4. **One writer per store.** Every persistent store has exactly one owning module. Nothing else writes to it.
+5. **The trip folder is self-sufficient.** Everything needed to rebuild a trip's outputs lives in the trip folder. Caches only make things faster.
+6. **Imports point inward.** A pure core at the center. Every external effect (filesystem, network, LLM, OS) sits behind an adapter at the edge. The composition root is the only place adapters are wired in. Enforced by lint.
+7. **Good citizen of free geo services.** Cache aggressively, queue requests, back off on rate limits, attribute data sources.
+8. **Build the smallest thing that proves the next step.** Milestones in §18 decide what exists when. A section marked *(later)* is designed but not built yet.
+
+---
+
+## 2. Stack
+
+| Concern | Choice | Why |
+|---|---|---|
+| Runtime | **Bun** | One runtime for main process, tests, scripts. Runs TS directly. |
+| Desktop shell | **Electrobun** | The main process *is* Bun, so agent, storage and jobs run in-process with no sidecar. Electrobun-specific code stays inside `apps/desktop/src/bun`, so the shell can be swapped. |
+| Renderer | System webview; **CEF bundled on Linux** (adds ~100 MB to that build) | WebKitGTK's WebGL is the weak point for MapLibre and 3D terrain. |
+| UI | **React + Vite**, **TanStack Router** (SPA) + **TanStack Query** | Type-safe routes; Query owns server-state caching and invalidation. |
+| Components | **shadcn/ui** (Radix primitives + Tailwind CSS) | Components are copied into the repo and owned by us. |
+| API | **tRPC** (`@trpc/tanstack-react-query`) over the loopback server | End-to-end types between webview and main process. |
+| Agent | **Vercel AI SDK** (`ToolLoopAgent`) | Thin, explicit tool loop; we own the orchestration. `useChat` for streaming. **Pin one major version** (v6 or v7, whichever is current stable at M2) and use that version's docs only. |
+| Schemas | **zod** | One schema shared by producer and consumer at every boundary. |
+| Map | **MapLibre GL JS**, **PMTiles** (Protomaps builds), **Terrarium** terrain tiles | Works offline from local files. |
+| Geo | **turf.js**, **flatbush** (in-memory spatial index), **suncalc**, `@tmcw/togeojson` (GPX import), own GPX serializer | Small, deterministic, testable. |
+| Routing | **OpenRouteService** `foot-hiking` (default), GraphHopper (optional), behind `RoutingPort`; **BRouter** *(later, offline pack)* | ORS's free tier fits hiking; GraphHopper's free tier is too narrow to be the default (§12.1). |
+| Geocoding | **IGN Géoplateforme** geocoder (France, no key), **Photon** / **Nominatim** fallback, behind `GeocodePort` | Place names must become ids before anything else works. |
+| Elevation | Terrarium for display and 3D; **IGN RGE ALTI** for stats in France *(optional)*, behind `ElevationPort` | Terrarium is too coarse for raw D+ (§12.4). |
+| POIs | **Overpass API**, tile-cached | Water, shelters, campsites, stations, shops. |
+| Weather | **Open-Meteo** | Free, no key. |
+| Storage | **Plain files** (JSON, JSONL, GeoJSON, GPX) | Inspectable, diffable, portable. No database. |
+| Secrets | `Bun.secrets` (OS keychain) with an explicit fallback (§15) | Keys never in plain files by default. |
+| Lint / types / tests | ESLint (`import/no-restricted-paths`), `tsc --noEmit` (strict, `noUncheckedIndexedAccess`), `bun test` | Gates on every change. |
+
+---
+
+## 3. Process model
+
+```
+┌──────────────────────── Electrobun app ────────────────────────┐
+│                                                                │
+│  Bun main process (apps/desktop/src/bun)                       │
+│   ├─ single-instance lock                                      │
+│   ├─ composition root: wires stores, ports, agent              │
+│   ├─ Bun.serve on 127.0.0.1:<random port> (hardened, §3.1)     │
+│   │    ├─ /trpc/*        CRUD: trips, stages, edits, export    │
+│   │    └─ /api/chat      agent stream (AI SDK UIMessage SSE)   │
+│   └─ file stores (the only code that touches disk)             │
+│                                                                │
+│  Webview (apps/desktop/src/webview)                            │
+│   └─ React SPA: chat panel · MapLibre map · elevation profile  │
+│        talks ONLY to the loopback server                       │
+└────────────────────────────────────────────────────────────────┘
+          │ HTTPS (user's keys)
+          ▼
+   LLM provider / local model · ORS · geocoder · Overpass · Open-Meteo
+```
+
+- **One process, one event loop.** No worker threads in v0. Writes are serialized by the event loop (§7.4).
+- **Refresh model (v0):** after a mutation or a chat turn settles, the client invalidates the affected TanStack Query keys and refetches. A push channel (tRPC subscription, notify-only events) comes *(later)*, once background jobs exist (§9.5).
+
+### 3.1 Transport security
+
+The loopback server is reachable by any local process and any browser tab, so it is hardened. All of these are required:
+
+- Bind to `127.0.0.1` only, on a random port.
+- **Host check:** reject any request whose `Host` header is not exactly `127.0.0.1:<port>`. This blocks DNS rebinding.
+- **Origin check:** allow only the webview's own origin. Reject a missing or `null` Origin on state-changing requests. No wildcard CORS.
+- **Token:** a random per-launch token, handed to the webview through the Electrobun preload (never in the URL). The client sends it in an `Authorization` header on every request.
+- **Streaming:** use `fetch`-based SSE (the AI SDK transport already does this), because `EventSource` can't set headers.
+- **Verify at M0** on all three webviews that the app's origin can call `http://127.0.0.1` without being blocked as mixed content.
+
+Alternative recorded in §20: Electrobun's typed RPC (already encrypted), at the cost of hand-building streaming and a custom tRPC link.
+
+---
+
+## 4. Packages and the import law
+
+v0 starts with two packages and splits when the import law has something real to protect (M2):
+
+```
+v0 (M0–M1)                       v1 (from M2)
+packages/core                    packages/
+apps/desktop                       core/      PURE: contracts, ports, validator,
+                                              GPX serializer, geo math, phase derivation
+                                     agent/     planner, sub-agents, tools, prompts
+                                     adapters/  routing, geocode, elevation, overpass, weather
+                                     store/     file adapters, atomic writes, JSONL helpers
+                                   apps/desktop/
+                                     src/bun/      composition root, loopback server, keychain
+                                     src/webview/  React SPA
+                                       components/ui/  shadcn/ui components (owned here)
+```
+
+`core` has **two entry points**:
+
+- `core/browser`: browser-safe code only (contracts, validator, geo math, GPX serializer). The webview may import only this.
+- `core/server`: adds ports and anything Node/Bun-specific.
+
+| Zone | May import |
+|---|---|
+| `packages/core/**` | nothing from this repo |
+| `packages/agent/**` | `core` only (everything else injected through factories) |
+| `packages/adapters/**`, `packages/store/**` | `core` only |
+| `apps/desktop/src/webview/**` | `core/browser` + the tRPC router **type** exported from `core/server/api-types` |
+| `apps/desktop/src/bun/**` | everything; this is the composition root |
+
+Enforced by ESLint `import/no-restricted-paths`. Lint failure fails the build. The tRPC `AppRouter` type lives in `core` so the webview never imports the composition root.
+
+---
+
+## 5. Glossary of ids
+
+Every id is a string with a prefix, so its kind is visible in logs and in the model's context.
+
+| Id | Format | Source | Lifetime |
+|---|---|---|---|
+| `tripId` | `trip_<ulid>` | minted at trip creation, stored in `trip.json` | forever; independent of the folder name |
+| `chatId` | `chat_<ulid>` | minted at chat creation | forever |
+| `stageId` | `stage_<n>_<short>` | minted by `submit_itinerary` / `amend_stage` | while the stage exists in the trip |
+| `placeId` | `geo:<provider>:<providerId>` | geocoder result | stable across turns; resolved through the trip's id registry |
+| `poiId` | `osm:node/123`, `osm:way/456` | OSM element id | stable across cache refreshes |
+| `waypointId` | `wp_<short>` | minted when a place, POI, user click or snap becomes a waypoint | per trip |
+| `routeId` | `route_<sha256 of the stored geometry file, 16 hex>` | content hash of `routes/<routeId>.geojson` | forever; the same geometry gives the same id |
+| `violationId` | `v_<ruleId>_<stageId>_<short>` | validator, deterministic | until the violation clears |
+
+**Id registry.** Each trip keeps the ids it has used, and what they resolve to, in `trip.json` (`registry: { places, pois, waypoints }`). Any id the model got in turn 2 still resolves in turn 9, after a restart, or after the cache is cleared.
+
+---
+
+## 6. Runtime systems and ownership
+
+| System | Owns (sole writer) | Role |
+|---|---|---|
+| **Planner** (turn pipeline) | `<data>/chats/*.jsonl` | Runs one chat turn: build the agent from the record + trip digest, stream, persist. |
+| **Trips** (trip service) | each trip folder | Applies commands (from tools or map edits), writes `trip.json` and `routes/`, regenerates derived files. |
+| **Cache** | `<cache>/**` | Geocoding, POI tiles, routing responses, elevation samples. Always disposable. |
+| **Settings** | `<data>/settings.json` (+ keychain) | Models, providers, trips folder path. |
+| **Workbench** *(later)* | `<data>/jobs/*.json` | Background sub-agents with ack-and-steer (§9.5). |
+
+Agents never write files. They call tools; tools call the trip service or adapters through ports.
+
+---
+
+## 7. Storage
+
+### 7.1 Locations
+
+Overridable with `<APP>_DATA_DIR` and `<APP>_CACHE_DIR`. These are also the test seams.
+
+| | Data (chats, settings, logs) | Cache |
+|---|---|---|
+| macOS | `~/Library/Application Support/<App>/` | `~/Library/Caches/<App>/` |
+| Windows | `%APPDATA%\<App>\` | `%LOCALAPPDATA%\<App>\Cache\` (does not roam) |
+| Linux | `$XDG_DATA_HOME/<app>/` (default `~/.local/share/<app>/`) | `$XDG_CACHE_HOME/<app>/` (default `~/.cache/<app>/`) |
+
+```
+<data>/
+  settings.json            models, providers, trips folder path (no secrets); has "v"
+  chats/<chatId>.jsonl     one UIMessage per line, appended; the planner's transcript
+  logs/                    rotated logs; never keys, never full prompts
+  trips-index.json         DERIVED: tripId → folder path, rebuilt by rescan
+
+<cache>/
+  geocode/<hash>.json      geocoder responses
+  pois/<z12-x-y>.geojson   Overpass results per tile + fetchedAt
+  routes/<hash>.json       routing responses keyed by hash(snapped coords + profile + provider + adapterVersion)
+  elevation/…              decoded terrain samples
+```
+
+### 7.2 Trip folder (user-facing)
+
+Default `~/Documents/<App>/trips/`, user-configurable. One folder per trip:
+
+```
+trips/<yyyy-mm>-<slug>/
+  trip.json             SOURCE OF TRUTH: v, tripId, brief, constraints, stages,
+                        waypoints, registry, routeIds per stage, chatId, timestamps
+  routes/<routeId>.geojson   EVIDENCE: geometry + per-point elevation for each routed leg
+  route.gpx             DERIVED: one track per day
+  route-merged.gpx      DERIVED: one single track (for importers that read only the first track)
+  day-<n>.gpx           DERIVED: one per stage
+  waypoints.gpx         DERIVED: water, camps, stations as <wpt>
+  report.md             DERIVED: plan summary, violations, unverified warnings, attribution, licence notes
+```
+
+- **Rebuilding:** every derived file can be regenerated from `trip.json` + `routes/` alone, with no cache and no network.
+- **Undo and history** *(later)*: add `events.jsonl` (typed events with a `v` field, zod schema per event). Until then, before every write the trip service keeps the previous `trip.json` as `trip.prev.json` (one level of undo).
+- **External tools:** the folder must open correctly in any GPX tool (OsmAnd, Komoot, the author's separate Tauri GPX editor) without the app.
+
+### 7.3 Identity and external edits
+
+Users will rename, move, hand-edit and delete trip folders.
+
+- **Identity is `tripId` inside `trip.json`**, never the folder name.
+- **Rescan** the trips folder on startup and on window focus, rebuilding `trips-index.json`.
+- A chat whose trip can't be found shows the trip as **orphaned** in the UI, with "locate folder" and "detach" actions.
+- If `trip.json` fails schema validation (hand edit gone wrong), the trip opens read-only with the zod error shown. The app never overwrites a file it couldn't parse.
+
+### 7.4 File rules
+
+- **Atomic replace:**
+  1. Write `<name>.tmp-<pid>` **in the same directory** as the target. This avoids cross-device renames (EXDEV).
+  2. fsync the file.
+  3. Rename over the target.
+  4. fsync the directory (POSIX).
+- **Windows:** retry the rename with backoff (e.g. 5 tries, 50→800 ms) on EPERM/EBUSY, which antivirus, the indexer or an open GPX viewer cause. After the last retry, surface the error; never fall back to a non-atomic write.
+- **Synced folders:** if the trips folder is inside iCloud Drive, OneDrive or Dropbox, warn once in settings. Detect conflict copies (`trip (1).json`, `trip 2.json`) on rescan and show them instead of ignoring them.
+- **JSONL (chats):**
+  - A bad **trailing** line (crash mid-append) is truncated on open.
+  - A bad line **in the middle** stops loading that chat. The file is moved to `quarantine/`, and the UI says so.
+  - Lines are never silently dropped.
+- **Schema versions:** every JSON file and every JSONL line carries `"v"`. Upgrades are functions in `core` (`v1 → v2`). On open, data is migrated in memory and written back at the next normal write. A file with a `v` **newer** than the app knows opens read-only.
+- **Synchronous writes, single process:** the single-instance lock (§16) guarantees one writer.
+
+---
+
+## 8. The geometry rule, end to end
+
+The model never sees coordinates. These tools let it work with places anyway:
+
+1. `find_place("Fontainebleau-Avon station")` → `[{placeId, label, kind, distanceFromHintKm}]`. The adapter calls the geocoder; coordinates go into the trip's id registry, not to the model.
+2. `find_pois(near: placeId | stageId | waypointId, radiusKm, kinds)` → POIs with `poiId`, name, kind, tier and distance. The bounding box is computed by code from the anchor.
+3. `points_along(routeId, everyKm | atKm, kinds)` → POIs near the line, with distance along the route.
+4. `route(stageId)` → routes the stage's ordered waypoints and returns a summary plus `routeId`. Geometry is written to `routes/` by the trip service.
+
+Waypoints are typed:
+
+```ts
+type Waypoint = {
+  id: WaypointId;
+  kind: "place" | "poi" | "user" | "snap";
+  ref?: PlaceId | PoiId;   // for place / poi
+  lngLat: [number, number]; // only ever in trip.json, never in model context
+  label: string;
+};
+```
+
+A point the user drops on the map becomes a `user` waypoint with its own id (§10), so the model can talk about it.
+
+---
+
+## 9. Agent design
+
+### 9.1 The planner
+
+One conversational agent per chat. Each turn it is rebuilt from `chats/<chatId>.jsonl` plus a **trip digest**.
+
+**Phase** is derived from **trip state**, not by parsing the transcript:
+
+| Trip state | Phase | Planner focus |
+|---|---|---|
+| no trip, or brief incomplete | **Brief** | gather constraints with `ask_user`: dates and days, km and D+ per day, start and end access (train), overnight type, water, season, fitness |
+| brief complete, no stages | **Plan** | find places and POIs, then `submit_itinerary` |
+| stages exist | **Refine** | route, validate, react to violations and map edits with `amend_stage` |
+
+A brief is complete when the zod `Brief` schema parses with all required fields.
+
+### 9.2 Trip digest (the planner's view of the present)
+
+Injected into the instructions at the start of every turn. It is short, generated by code from `trip.json`:
+
+- the brief, in one block;
+- each stage: id, from → to (labels and ids), km, D+, overnight, routeId;
+- open violations (ids, rules, measured vs limit), then unverified warnings;
+- **edits since the last turn** (from map edits, §10), as id-level diffs.
+
+The transcript is for dialogue only. When the record is rebuilt, tool outputs older than the last 2 turns are replaced by one-line stubs ("find_pois returned 14 POIs near stage_2"), since the digest already holds the current state.
+
+### 9.3 Tools
+
+| Tool | Kind | Returns to the model |
+|---|---|---|
+| `ask_user(question, options?)` | **client-side** (no `execute`); rendered as a card, answered in the UI | the user's answer |
+| `find_place(query, nearHint?)` | server → `GeocodePort` | candidates: `placeId`, label, kind |
+| `find_pois(near, radiusKm, kinds)` | server → Overpass cache | POIs: `poiId`, name, kind, water tier, distance; **top 15** |
+| `points_along(routeId, …)` | server | POIs near the line, distance along route; top 15 |
+| `submit_brief(brief)` | server, zod-validated | ack, or structured issues |
+| `submit_itinerary(stages)` | server, zod-validated | ack + `stageId`s, or structured issues |
+| `amend_stage(stageId, patch)` | server, zod-validated | ack, or structured issues |
+| `route(stageId)` | server → `RoutingPort` | km, D+, D−, estimated time, snap distances, `routeId` |
+| `conditions(tripId)` | server, **deterministic** (Open-Meteo + suncalc) | sunrise and sunset per day, forecast if within range, daylight margin per stage |
+| `validate(tripId)` | server, deterministic | violations + warnings (§11) |
+| `scout(stageId, question)` | server, **synchronous sub-agent** (cheap model) | a short structured answer |
+| `critique(tripId)` | server, **synchronous sub-agent** (strong model) | proposed changes, never edits |
+| `export_trip(tripId)` | server, with **tool approval** | paths of the written files |
+
+### 9.4 Submit loop
+
+- Invalid input returns **structured issues**: `[{path: "stages.2.overnight", message: "…"}]`, taken from the zod error.
+- Retries are counted **per tool per turn**, max 3 (via `prepareStep`). After that, the agent must call `ask_user` instead of retrying.
+- A client-side tool (`ask_user`) ends the loop: the pending call is persisted to the chat record **before** the UI shows the card. Answering it sends the tool output and starts the next turn, so resuming after a restart works with no extra code.
+
+### 9.5 Sub-agents
+
+- **v0:** `scout` and `critique` are synchronous tools. Each runs its own `ToolLoopAgent` (with a read-only tool subset) inside `execute`, and returns a structured result. `conditions` is not an agent at all.
+- **(later) Workbench with ack-and-steer**, added only when waiting on a sub-agent visibly hurts. Same tool names, different execution:
+  1. The tool returns an ack immediately; a job file is written to `jobs/`.
+  2. On completion, the result becomes a **steer** message with id `steer_<jobId>`.
+  3. The steer triggers a wake turn only when no turn is running **and no `ask_user` is pending**. Otherwise it waits in the queue.
+  4. The job is marked done only after the wake turn persists. Delivery is exactly-once via the steer id.
+  5. On startup, stale jobs are recovered.
+  6. A notify-only push channel lets the UI pick up wake turns.
+- All LLM calls outside the main turn share one semaphore (3 permits).
+
+### 9.6 Models
+
+- Two slots: **strong** (planner, critique) and **cheap** (scout).
+- At startup and when a slot changes, run a **tool-calling self-test**: one scripted tool call. A slot that fails shows a warning, since small local models often can't call tools reliably.
+
+---
+
+## 10. Map edits
+
+The map is a second way to change the trip, alongside the planner. Both go through the same trip service.
+
+1. The user drags a waypoint, adds a point or deletes one on the map.
+2. The webview sends an `EditCommand` over tRPC: `{kind: "move" | "insert" | "delete", stageId, waypointId?, lngLat?, index?}`.
+3. The trip service applies it to `trip.json`, creating a `user` waypoint where needed. It re-routes **only the affected stage**, re-validates, and records the change in `trip.json.pendingEdits`.
+4. The next planner turn sees the change in the trip digest's "edits since last turn". The digest clears `pendingEdits` once delivered.
+
+---
+
+## 11. Validation (deterministic, in `core`)
+
+`validate(trip, routes, pois, rules) → { violations: Violation[], warnings: Warning[] }`. Pure function, fully unit-tested.
+
+```ts
+type Violation = {
+  id: ViolationId; rule: RuleId; stageId: StageId;
+  severity: "error" | "warn";
+  measured: number | string; limit: number | string; atKm?: number;
+  message: string;
+};
+type Warning = { rule: RuleId; stageId?: StageId; message: string }; // unverifiable: the model can't fix these
+```
+
+Violations are things the planner can fix. Warnings are things nobody in the app can verify; they go to `report.md` and the UI, and the planner is told not to try to fix them.
+
+**Rules (initial):**
+
+| Rule | Kind | Check |
+|---|---|---|
+| `daily-distance` | violation | stage km within the brief's limit (+10% tolerance) |
+| `daily-gain` | violation | stage D+ (smoothed, §12.4) within the brief's limit |
+| `water-gap` | violation | max distance between **potable** sources along the stage ≤ brief limit (§12.3) |
+| `overnight` | violation | stage ends at an overnight option of the requested type, per the region rules file; none found = violation |
+| `access` | violation | start and end within the set distance of public transport, if requested |
+| `continuity` | violation | stage *n* ends where stage *n+1* starts |
+| `snap-distance` | violation | any waypoint snapped > 200 m to the path network |
+| `private-access` | violation | route uses `access=private` or `access=no` |
+| `backtracking` | warn | share of repeated segments on a loop > 15% |
+| `daylight` | violation | estimated finish before sunset minus 1 h margin (Naismith-style time estimate) |
+| `waymarked-share` | info in digest | share of the stage on `route=hiking` relations (GR/GRP/PR) |
+| bivouac legality, spring reliability, seasonal closures | warning | always "unverified — check locally" |
+
+Tolerances and thresholds live in one `rules.ts` table in `core`.
+
+---
+
+## 12. Geo data and services
+
+### 12.1 Routing
+
+- **Default: ORS `foot-hiking`** with the user's key. The standard plan allows about 2,000 route requests per day, up to 50 waypoints.
+- **GraphHopper** is optional. Its free plan allows 5 points per request and non-commercial use only.
+- `RoutingPort` exposes `capabilities: { maxWaypoints, profiles }`. The adapter splits a stage into several requests when it has too many waypoints, and stitches the results.
+- Every request sets a snap search radius. The adapter records how far each waypoint moved to reach the path network.
+- Prefer, don't follow, waymarked trails: report the GR/PR share (§11). Never route directly along relation geometry; relations are often broken.
+- **BRouter offline pack** *(later)*: jlink'd JRE + region segments, behind the same port.
+
+### 12.2 Geocoding
+
+- `GeocodePort` with the IGN Géoplateforme geocoder (France, no key) first, Photon second, Nominatim last.
+- Nominatim: max 1 request per second, identifying `User-Agent`, cache required.
+- All results cached under `<cache>/geocode/`.
+
+### 12.3 POIs (Overpass)
+
+- **Tiles:** fixed z12 (about 6.5 km at 48°N). One combined query per tile for all POI kinds, `out center`.
+- **Cache:** time-to-live 2–4 weeks, stored with `fetchedAt`.
+- **Etiquette:** one request at a time from a queue, identifying `User-Agent` (app + repo URL), backoff on 429/504, configurable endpoint.
+- **Water tiers:**
+
+| Tier | OSM tags | Counts for `water-gap` |
+|---|---|---|
+| potable | `amenity=drinking_water`, `man_made=water_tap`, any with `drinking_water=yes` | yes |
+| unknown | `natural=spring` without `drinking_water=yes`, cemetery taps, `drinking_water` missing | no (warning) |
+| resupply | shops, cafés, restaurants with opening hours | no (shown separately) |
+
+- Anything tagged `seasonal=yes` or `drinking_water=no` is never potable.
+
+- **Overnight options:** `tourism=camp_site` (incl. `camp_site=basic`), `tourism=wilderness_hut`, `amenity=shelter`, `tourism=alpine_hut`, gîtes (`tourism=hostel` / `guest_house` with gîte tags).
+- **Region rules file:** a versioned `rules/regions/<region>.json` maps areas to bivouac allowed / banned / designated zones only (e.g. bivouac is generally banned in Île-de-France state forests, with designated areas in Fontainebleau). Missing region = "unverified".
+
+### 12.4 Elevation
+
+- Terrarium (≈25–30 m resolution) is used for display, the elevation profile and 3D.
+- **D+ computation** in `core`:
+  1. resample the line every 20 m;
+  2. smooth (moving window);
+  3. count a climb only when it exceeds a 4 m hysteresis threshold.
+
+  Unit-tested against fixture tracks with known D+.
+- **France:** optional `ElevationPort` adapter for the IGN RGE ALTI altimetry service, used for stats when enabled.
+
+### 12.5 Basemap, weather, sun
+
+- **Basemap:** Protomaps daily planet build, cut to a region with `pmtiles extract` and a bbox. Pin the build date. Never pull tiles from OSM's tile servers.
+- **Weather:** Open-Meteo, no key.
+- **Sun:** suncalc, computed in the trip's timezone (`Europe/Paris` for France, including the daylight-saving change).
+
+### 12.6 GPX output
+
+- **Tracks (`trk`), not routes (`rte`)**, so apps don't re-route.
+- `route.gpx`: one `trk` per day. `route-merged.gpx`: one `trk`, for Komoot / Garmin Connect, which import only the first track.
+- Points of interest as `wpt` in `waypoints.gpx`, with `name`, `sym` and `type`.
+- `ele` from our own DEM. No fake `time` values.
+- Metadata: name, description, link to `report.md`, and OSM copyright:
+  `<copyright author="OpenStreetMap contributors"><license>https://opendatacommons.org/licenses/odbl/</license></copyright>`.
+
+### 12.7 Attribution and licences
+
+- "© OpenStreetMap contributors" (ODbL) on the map, in GPX metadata and in `report.md`. Protomaps and IGN attributed where used.
+- GPX tracks and `report.md` are Produced Works under ODbL: attribution required.
+- POI extracts (`waypoints.gpx`, cached GeoJSON) are derivative databases. If shared, ODbL share-alike applies. `report.md` says so.
+
+---
+
+## 13. Failure handling
+
+| Failure | Timeout / retries | What the user sees | Turn |
+|---|---|---|---|
+| LLM 429 / 5xx | 60 s, 2 retries with backoff | "provider busy, retrying…", then an error card with retry | fails, transcript kept |
+| LLM can't call tools | self-test at startup (§9.6) | warning on the model slot | blocked until slot changes |
+| ORS quota exhausted / 429 | no retry on quota; backoff on 429 | "routing quota reached — resets at …" | continues; stage left unrouted |
+| ORS 5xx / timeout | 20 s, 2 retries | "routing unavailable" on the stage | continues |
+| Overpass 429 / 504 / timeout | 60 s, queue + backoff up to 3 | "POI data delayed"; stale cache used if present | continues with stale or no POIs |
+| Geocoder no result / error | 10 s, fallback to next provider | `ask_user` to rephrase or pick on map | continues |
+| Open-Meteo error | 10 s, 1 retry | "forecast unavailable" | continues |
+| Disk write fails | atomic-write retries (§7.4) | blocking error with the path | fails, nothing partial written |
+
+Every adapter returns `Result<T, AdapterError>` with a typed error kind. The tool turns that into a message the model can act on.
+
+---
+
+## 14. Testing
+
+All deterministic, **no network, no keys**:
+
+1. **Core units:**
+   - contracts and migrations;
+   - every validator rule;
+   - D+ smoothing against fixture tracks;
+   - water tiers;
+   - GPX serializer, round-tripped through `@tmcw/togeojson`;
+   - phase derivation;
+   - trip digest rendering.
+2. **Adapters:** recorded fixture responses for ORS, the geocoders and Overpass. File stores run against temp `<APP>_DATA_DIR` / `<APP>_CACHE_DIR`, including the Windows-style rename-retry path (simulated EBUSY).
+3. **Agent flows:** a fake LLM engine with scripted responses drives full turns:
+   - tool calls and submit retries;
+   - `ask_user` persistence and resume;
+   - map edit → digest;
+   - *(later)* steer wake and crash recovery.
+4. **Fixture trips** in `examples/`: a two-day forest loop near Paris, as golden outputs (`trip.json`, `routes/`, GPX, `report.md`).
+
+Gates on every change: `bun test`, `tsc --noEmit`, `eslint`.
+
+---
+
+## 15. Security and privacy
+
+- **Keys:** `Bun.secrets` with `persist: "local"` (no roaming on Windows), cached in memory after the first read.
+  - On Linux without a running Secret Service, the app says so and offers an explicit fallback: an environment variable, or a key file with 0600 permissions that the user opts into.
+  - `Bun.secrets` is marked experimental; it stays behind a `SecretsPort`.
+- **Loopback server:** hardened as in §3.1.
+- **Logs:** under `<data>/logs/`, rotated. They never contain keys, full prompts or full model outputs, only ids, tool names, timings and error kinds.
+- **What leaves the machine:** model requests send only the context the task needs. The UI states that "local storage" does not mean offline processing.
+- No telemetry.
+- **Usage meter:** token counts per chat and per sub-agent call. Cost in currency *(later)*, once a price table per model exists; local models show tokens only.
+
+---
+
+## 16. Operations
+
+- **Single-instance lock:** a second launch focuses the existing window. Required by §7.4's single-writer assumption.
+- **Crash handling:** handlers for uncaught exceptions and unhandled rejections log the error, flush pending writes and show a restart dialog.
+- **Migrations:** run before any write. Data with a newer `v` than the app knows opens read-only (§7.4).
+- **Updates** *(later)*: Electrobun's updater or a GitHub Releases check. An update never changes a data format without a migration in `core`.
+
+---
+
+## 17. Build and distribution
+
+- **v0:**
+  - build on the author's own OS;
+  - CI on Linux runs `bun test`, `tsc` and `eslint` only;
+  - releases unsigned.
+- **(later):**
+  - GitHub Actions matrix (macOS, Windows, Ubuntu), since Electrobun builds per host platform;
+  - CEF bundled on Linux;
+  - macOS notarization, Windows signing.
+- **Licence:** AGPL-3.0.
+
+---
+
+## 18. Milestones
+
+| | Scope | Done when |
+|---|---|---|
+| **M0** | Electrobun window, MapLibre, `core` (browser + server entries), `bun test`, data/cache dir seams, single-instance lock, hardened loopback with a ping route | App launches on the author's OS; one unit test passes; loopback rejects a request with a wrong Host or token |
+| **M1** | **No LLM.** Click points → ORS → line + elevation profile (smoothed D+) → `trip.json` + `routes/` → GPX export | GPX opens in OsmAnd; read-back test passes; D+ fixture test passes |
+| **M2** | Planner with synchronous tools (`ask_user`, `find_place`, `find_pois`, `submit_brief`, `submit_itinerary`, `route`, `export_trip`), trip digest, chats as JSONL; packages split | "2-day loop from X" produces a trip folder; a fake-LLM test drives a full turn including an `ask_user` resume |
+| **M3** | Validator (all §11 rules), `conditions`, region rules file, `report.md`, map edits (§10), `amend_stage`, `scout` and `critique` as sync tools | A planted violation is caught, fixed by re-routing one stage only, and clears; a map edit appears in the next digest |
+| **M4** | Pick one: Workbench (ack-and-steer + push channel), `events.jsonl` with undo/history, or the BRouter offline pack | For the Workbench: killing the app mid-job still delivers the result exactly once after restart |
+
+---
+
+## 19. Seam directory
+
+| Seam | Location | What it swaps |
+|---|---|---|
+| Storage | composition root + `packages/store` | file layout, in one place |
+| Routing | `RoutingPort` + `packages/adapters/routing` | ORS ↔ GraphHopper ↔ BRouter |
+| Geocoding | `GeocodePort` | IGN ↔ Photon ↔ Nominatim |
+| Elevation | `ElevationPort` | Terrarium ↔ IGN RGE ALTI |
+| Secrets | `SecretsPort` | keychain ↔ env var ↔ key file |
+| LLM per role | settings model slots + engine factory in the composition root | provider/model, local vs hosted |
+| Data and cache location | `<APP>_DATA_DIR`, `<APP>_CACHE_DIR` | where files live (also the test seams) |
+| Agent construction | turn handler takes an optional agent builder | scripted engines in tests |
+| Sub-agent execution | tool `execute` for `scout` / `critique` | synchronous now, Workbench job later, same tool names |
+| Transport | `apps/desktop/src/bun` server + webview client links | hardened loopback ↔ Electrobun RPC |
+
+---
+
+## 20. Decision log and open questions
+
+**Decisions in v1** (from the 2026-10-28 review):
+
+| Decision | Choice | Alternative kept open |
+|---|---|---|
+| Transport | Hardened loopback (§3.1): keeps tRPC + `useChat` streaming unchanged | Electrobun typed RPC: already encrypted, but streaming and the tRPC link must be built by hand |
+| Trip storage | `trip.json` is the source of truth + `routes/` as evidence; `trip.prev.json` for one-level undo | `events.jsonl` event log, when undo/history is needed (M4) |
+| Route geometry | stored in the trip folder, content-addressed `routeId` | — (cache-only geometry made trips unrebuildable) |
+| Phase | derived from trip state | — (transcript parsing broke with map edits) |
+| Sub-agents | synchronous tools in v0 | Workbench with ack-and-steer (M4) |
+| Default router | ORS `foot-hiking` | GraphHopper as optional adapter |
+| Chats | JSONL, one message per line | — (whole-file JSON rewrite grew per turn) |
+| Push events | none in v0; refetch after mutations | notify-only tRPC subscription, with the Workbench |
+
+**Open questions:**
+
+- **Name** of the app (replaces `<App>`).
+- **Licence variant:** `AGPL-3.0-only` vs `AGPL-3.0-or-later`.
+- AI SDK major version to pin at M2 (v6 vs v7).
+- **Offline use on the trail** as a requirement? It would pull the BRouter pack and region downloads earlier.
+- CEF on all platforms vs Linux only.
+- Importing existing GPX files as the starting point for a trip.
+- Trip history and preferences carried across sessions (LearnHarness's "library" idea).
