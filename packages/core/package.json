@@ -1,0 +1,9 @@
+{
+  "name": "@gpx-builder/core",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./browser": "./src/browser/index.ts",
+    "./server": "./src/server/index.ts"
+  }
+}

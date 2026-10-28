@@ -1,0 +1,9 @@
+{
+  "name": "@gpx-builder/agent",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@gpx-builder/core": "workspace:*"
+  },
+  "exports": "./src/index.ts"
+}

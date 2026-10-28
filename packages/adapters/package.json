@@ -1,0 +1,9 @@
+{
+  "name": "@gpx-builder/adapters",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@gpx-builder/core": "workspace:*"
+  },
+  "exports": "./src/index.ts"
+}

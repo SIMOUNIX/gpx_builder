@@ -1,0 +1,11 @@
+{
+  "name": "@gpx-builder/cli",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@gpx-builder/core": "workspace:*",
+    "@gpx-builder/store": "workspace:*",
+    "@gpx-builder/adapters": "workspace:*",
+    "@gpx-builder/agent": "workspace:*"
+  }
+}
