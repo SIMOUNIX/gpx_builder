@@ -2,7 +2,7 @@ import js from "@eslint/js";
 import importPlugin from "eslint-plugin-import";
 import tseslint from "typescript-eslint";
 
-// Import law (docs/architecture.md §4): core imports nothing from the repo,
+// Import law: core imports nothing from the repo,
 // store/adapters/agent import core only, apps/cli is the composition root.
 const others = (self) =>
   ["core", "store", "adapters", "agent"].filter((p) => p !== self);
