@@ -15,16 +15,24 @@ export interface GeocodePort {
   }): Promise<Result<GeocodeCandidate[]>>;
 }
 
-export type RouteLeg = {
+/**
+ * The router's answer for one whole stage: a single path through every waypoint
+ * of the stage in order (from, via..., to), not one piece between two neighbours.
+ * Represent one day of the trip.
+ */
+export type RoutedStage = {
   line: Position3[];
   distanceM: number;
-  /** How far each input waypoint moved to reach the path network. */
+  /** How far each input waypoint moved to reach the path network. In case the waypoint is not on a valid path. */
   snapDistancesM: number[];
 };
 
 export interface RoutingPort {
   capabilities: { maxWaypoints: number; profiles: string[] };
-  route(q: { waypoints: LngLat[]; profile: string }): Promise<Result<RouteLeg>>;
+  route(q: {
+    waypoints: LngLat[];
+    profile: string;
+  }): Promise<Result<RoutedStage>>;
 }
 
 export interface SecretsPort {
