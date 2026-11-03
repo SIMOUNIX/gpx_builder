@@ -18,6 +18,9 @@ import { parseRoute, routeIdOf, serializeRoute } from "./route-file";
 const KNOWN_V = 1;
 const TRIP_FILE = "trip.json";
 const PREV_FILE = "trip.prev.json";
+// Derived files are plain names inside the trip folder: no separators, no leading dot.
+const PLAIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const RESERVED = new Set([TRIP_FILE, PREV_FILE]);
 
 const shortId = (id: string) => id.slice("trip_".length, "trip_".length + 8);
 
@@ -283,6 +286,23 @@ export function createTripStore(opts: {
           message: `${file} is not a route`,
           path: file,
         });
+      }
+    },
+
+    writeDerived(tripId, files) {
+      const names = Object.keys(files).sort();
+      const bad = names.find((n) => !PLAIN_NAME.test(n) || RESERVED.has(n));
+      if (bad !== undefined) {
+        return err({ kind: "invalid", message: `bad file name ${bad}` });
+      }
+      const found = find(tripsDir, tripId);
+      if (!found.ok) return found;
+      const paths = names.map((n) => join(found.value, n));
+      try {
+        names.forEach((n, i) => writeFileAtomic(paths[i]!, files[n]!));
+        return ok(paths);
+      } catch (e) {
+        return err(ioError(e, found.value));
       }
     },
   };

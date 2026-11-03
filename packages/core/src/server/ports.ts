@@ -52,6 +52,14 @@ export interface TripStorePort {
   save(trip: Trip): Result<void, StoreError>;
   writeRoute(tripId: TripId, line: Position3[]): Result<RouteId, StoreError>;
   readRoute(tripId: TripId, routeId: RouteId): Result<Position3[], StoreError>;
+  /**
+   * Writes { file name: content } into the trip folder and returns the paths
+   * written. Names must be plain file names; trip.json and trip.prev.json are refused.
+   */
+  writeDerived(
+    tripId: TripId,
+    files: Record<string, string>,
+  ): Result<string[], StoreError>;
 }
 
 export interface SecretsPort {
