@@ -48,6 +48,7 @@
       "name": "@gpx-builder/store",
       "dependencies": {
         "@gpx-builder/core": "workspace:*",
+        "zod": "4.6.7",
       },
     },
   },

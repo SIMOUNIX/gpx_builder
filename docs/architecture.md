@@ -175,7 +175,7 @@ Formats: `tripId` and `chatId` use a UUID v4 (`crypto.randomUUID()`, checked wit
 | **Planner** (turn pipeline) | `<data>/chats/*.jsonl`              | Runs one chat turn: build the agent from the record + trip digest, stream, persist.                      |
 | **Trips** (trip service)    | each trip folder                    | Applies commands (from tools or map edits), writes `trip.json` and `routes/`, regenerates derived files. |
 | **Cache**                   | `<cache>/**`                        | Geocoding, POI tiles, routing responses, elevation samples. Always disposable.                           |
-| **Settings**                | `<data>/settings.json` (+ keychain) | Models, providers, trips folder path.                                                                    |
+| **Settings** _(later)_      | `<data>/settings.json` (+ keychain) | Models, providers, trips folder path.                                                                    |
 | **Workbench** _(later)_     | `<data>/jobs/*.json`                | Background sub-agents with ack-and-steer (§9.5).                                                         |
 
 Agents never write files. They call tools; tools call the trip service or adapters through ports.
@@ -186,18 +186,21 @@ Agents never write files. They call tools; tools call the trip service or adapte
 
 ### 7.1 Locations
 
-Overridable with `<APP>_DATA_DIR` and `<APP>_CACHE_DIR`. These are also the test seams.
+Everything the app owns lives under one hidden folder in the user's home, on every OS:
 
-|         | Data (chats, settings, logs)                              | Cache                                                |
-| ------- | --------------------------------------------------------- | ---------------------------------------------------- |
-| macOS   | `~/Library/Application Support/<App>/`                    | `~/Library/Caches/<App>/`                            |
-| Windows | `%APPDATA%\<App>\`                                        | `%LOCALAPPDATA%\<App>\Cache\` (does not roam)        |
-| Linux   | `$XDG_DATA_HOME/<app>/` (default `~/.local/share/<app>/`) | `$XDG_CACHE_HOME/<app>/` (default `~/.cache/<app>/`) |
+```
+~/.gpx_builder/
+  data/     chats, quarantine, later settings and logs
+  cache/    disposable
+  trips/    one folder per trip (§7.2)
+```
+
+Each directory can be overridden on its own with `GPX_BUILDER_DATA_DIR`, `GPX_BUILDER_CACHE_DIR` and `GPX_BUILDER_TRIPS_DIR` (`<APP>_DATA_DIR` etc. elsewhere in this document). These are also the test seams. A settings panel will replace the overrides later.
 
 ```
 <data>/
-  settings.json            models, providers, trips folder path, home place (no secrets); has "v"
-  chats/<chatId>.jsonl     one UIMessage per line, appended; the planner's transcript
+  settings.json            (later) models, providers, trips folder path, home place (no secrets); has "v"
+  chats/<chatId>.jsonl     one ChatMessage per line, appended; the planner's transcript
   logs/                    rotated logs; never keys, never full prompts
   trips-index.json         DERIVED: tripId → folder path, rebuilt by rescan
 
@@ -210,13 +213,13 @@ Overridable with `<APP>_DATA_DIR` and `<APP>_CACHE_DIR`. These are also the test
 
 ### 7.2 Trip folder (user-facing)
 
-Default `~/Documents/<App>/trips/`, user-configurable. One folder per trip:
+Default `~/.gpx_builder/trips/`, overridable (a settings panel comes later). Being hidden, it is not browsed in Finder by default; the app shows each trip's path. One folder per trip:
 
 ```
-trips/<yyyy-mm>-<slug>/
+trips/<yyyy-mm>-<slug>-<8 hex of tripId>/
   trip.json             SOURCE OF TRUTH: v, tripId, brief, constraints, stages,
-                        waypoints, registry, routeIds per stage, chatId, timestamps
-  routes/<routeId>.geojson   EVIDENCE: geometry + per-point elevation for each routed leg
+                        waypoints, registry, routeId + stats + snapDistancesM per stage, chatId, timestamps
+  routes/<routeId>.geojson   EVIDENCE: geometry + per-point elevation for each routed stage
   route.gpx             DERIVED: one track per day
   route-merged.gpx      DERIVED: one single track (for importers that read only the first track)
   day-<n>.gpx           DERIVED: one per stage
@@ -224,8 +227,10 @@ trips/<yyyy-mm>-<slug>/
   report.md             DERIVED: plan summary, violations, unverified warnings, attribution, licence notes
 ```
 
+- **Folder name:** the 8-hex suffix is the first 8 hex of the `tripId` UUID. It is only a lookup hint (§7.3); renaming the folder is safe. The slug is lowercase ASCII (accents stripped, other characters become dashes, 40 characters max, `trip` if nothing is left).
+- **Route file:** a GeoJSON `Feature` with a `LineString`, written canonically (fixed key order, no whitespace, lng/lat rounded to 6 decimals, elevation to 1). `routeId` is `route_` plus the first 16 hex of the sha256 of those exact bytes, so the same geometry always gets the same id. A file that exists under an id with different bytes is reported as `corrupt`, never overwritten.
 - **Rebuilding:** every derived file can be regenerated from `trip.json` + `routes/` alone, with no cache and no network.
-- **Undo and history** _(later)_: add `events.jsonl` (typed events with a `v` field, zod schema per event). Until then, before every write the trip service keeps the previous `trip.json` as `trip.prev.json` (one level of undo).
+- **Undo and history** _(later)_: add `events.jsonl` (typed events with a `v` field, zod schema per event). Until then, before every write the trip service keeps the previous `trip.json` as `trip.prev.json` (one level of undo): the old bytes are written to `trip.prev.json` first, then the new `trip.json`, so a crash between the two leaves both equal.
 - **External tools:** the folder must open correctly in any GPX tool (OsmAnd, Komoot, the author's separate Tauri GPX editor) without the app.
 
 ### 7.3 Identity and external edits
@@ -233,25 +238,26 @@ trips/<yyyy-mm>-<slug>/
 Users will rename, move, hand-edit and delete trip folders.
 
 - **Identity is `tripId` inside `trip.json`**, never the folder name.
-- **Rescan** the trips folder on startup and on window focus, rebuilding `trips-index.json`.
+- **Lookup (built):** the folder-name suffix is tried first and verified against the `tripId` inside `trip.json`; if it misses, every folder is scanned, so a renamed folder is still found. Two folders holding one `tripId` is a `duplicate` error, never an arbitrary pick. An unreadable sibling does not break the lookup.
+- **Rescan** _(later)_: scan the trips folder on startup and on window focus, rebuilding `trips-index.json`. Not built yet; lookup scans on demand.
 - A chat whose trip can't be found shows the trip as **orphaned** in the UI, with "locate folder" and "detach" actions.
-- If `trip.json` fails schema validation (hand edit gone wrong), the trip opens read-only with the zod error shown. The app never overwrites a file it couldn't parse.
+- If `trip.json` fails schema validation (hand edit gone wrong), the trip opens read-only with the zod error shown. The app never overwrites a file it couldn't parse. Built: `load` returns `corrupt`, `invalid` or `newer-version`, and `save` refuses to write over such a file. The read-only UI mode comes with the UI.
 
 ### 7.4 File rules
 
 - **Atomic replace:**
-  1. Write `<name>.tmp-<pid>` **in the same directory** as the target. This avoids cross-device renames (EXDEV).
+  1. Write a hidden `.<name>.tmp-<pid>-<random>` **in the same directory** as the target. This avoids cross-device renames (EXDEV). The temp file is removed on failure, and stale ones a crash left behind are swept when a trip is opened.
   2. fsync the file.
   3. Rename over the target.
   4. fsync the directory (POSIX).
-- **Windows:** retry the rename with backoff (e.g. 5 tries, 50→800 ms) on EPERM/EBUSY, which antivirus, the indexer or an open GPX viewer cause. After the last retry, surface the error; never fall back to a non-atomic write.
+- **Windows** _(later)_: retry the rename with backoff (e.g. 5 tries, 50→800 ms) on EPERM/EBUSY, which antivirus, the indexer or an open GPX viewer cause. After the last retry, surface the error; never fall back to a non-atomic write.
 - **Synced folders:** if the trips folder is inside iCloud Drive, OneDrive or Dropbox, warn once in settings. Detect conflict copies (`trip (1).json`, `trip 2.json`) on rescan and show them instead of ignoring them.
 - **JSONL (chats):**
   - A bad **trailing** line (crash mid-append) is truncated on open.
   - A bad line **in the middle** stops loading that chat. The file is moved to `quarantine/`, and the UI says so.
   - Lines are never silently dropped.
 - **Schema versions:** every JSON file and every JSONL line carries `"v"`. Upgrades are functions in `core` (`v1 → v2`). On open, data is migrated in memory and written back at the next normal write. A file with a `v` **newer** than the app knows opens read-only.
-- **Synchronous writes, single process:** the single-instance lock (§16) guarantees one writer.
+- **Synchronous writes, single process:** the single-instance lock (§16) guarantees one writer. The store ports are synchronous for that reason; the network ports are async.
 
 ---
 
@@ -423,7 +429,7 @@ Tolerances and thresholds live in one `rules.ts` table in `core`.
 - **Default: ORS `foot-hiking`** with the user's key. The standard plan allows about 2,000 route requests per day, up to 50 waypoints.
 - **GraphHopper** is optional. Its free plan allows 5 points per request and non-commercial use only.
 - `RoutingPort` exposes `capabilities: { maxWaypoints, profiles }`. The adapter splits a stage into several requests when it has too many waypoints, and stitches the results.
-- Every request sets a snap search radius. The adapter records how far each waypoint moved to reach the path network.
+- Every request sets a snap search radius. The adapter records how far each waypoint moved to reach the path network; the numbers are kept on the stage as `snapDistancesM` (order: from, via..., to).
 - Prefer, don't follow, waymarked trails: report the GR/PR share (§11). Never route directly along relation geometry; relations are often broken.
 - **BRouter offline pack** _(later)_: jlink'd JRE + region segments, behind the same port.
 
@@ -499,7 +505,7 @@ Tolerances and thresholds live in one `rules.ts` table in `core`.
 | Open-Meteo error             | 10 s, 1 retry                     | "forecast unavailable"                                    | continues                       |
 | Disk write fails             | atomic-write retries (§7.4)       | blocking error with the path                              | fails, nothing partial written  |
 
-Every adapter returns `Result<T, AdapterError>` with a typed error kind. The tool turns that into a message the model can act on.
+Every adapter returns `Result<T, AdapterError>` with a typed error kind. The file stores return `Result<T, StoreError>` with kinds `not-found`, `invalid` (fails the schema), `corrupt` (unparseable), `newer-version`, `duplicate` and `io`. The tool turns that into a message the model can act on.
 
 ---
 
@@ -515,7 +521,7 @@ All deterministic, **no network, no keys**:
    - GPX serializer, round-tripped through `@tmcw/togeojson`;
    - phase derivation;
    - trip digest rendering.
-2. **Adapters:** recorded fixture responses for ORS, the geocoders and Overpass. File stores run against temp `<APP>_DATA_DIR` / `<APP>_CACHE_DIR`, including the Windows-style rename-retry path (simulated EBUSY).
+2. **Adapters:** recorded fixture responses for ORS, the geocoders and Overpass. File stores run against temp `<APP>_DATA_DIR` / `<APP>_CACHE_DIR` / `<APP>_TRIPS_DIR`, including the Windows-style rename-retry path (simulated EBUSY).
 3. **Agent flows:** a fake LLM engine with scripted responses drives full turns:
    - tool calls and submit retries;
    - `ask_user` persistence and resume;
@@ -568,31 +574,31 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 
 ## 18. Milestones
 
-|                    | Scope                                                                                                                                                                                                                                                                                 | Done when                                                                                                                                                        |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **M0** Foundations | Bun workspace, four packages + `apps/cli`, import-law lint, Prettier, `core` (ids, contracts, ports, phase, digest, D+, GPX serializer)                                                                                                                                               | `bun run check` passes. **Done.**                                                                                                                                |
-| **M1** Agent (CLI) | `store` (atomic writes, `trip.json`, `routes/`, chat JSONL, settings, data/cache dir seams), `adapters` (IGN geocoder, ORS `foot-hiking` with elevation, disk cache), `agent` (planner, tools in §9.3 marked M1, Anthropic/Mistral model slots), `apps/cli` chat REPL                 | A fake-LLM test drives a full turn including an `ask_user` resume; "2-day loop from X" run live from the terminal writes a trip folder whose GPX opens in OsmAnd |
-| **M2** Backend     | Electrobun main process, hardened loopback with a ping route, tRPC router, `/api/chat` stream, single-instance lock, keychain `SecretsPort`; `apps/desktop/src/bun` reuses the M1 packages                                                                                            | App launches; loopback rejects a wrong Host or token; the M1 flow works through tRPC and SSE without a UI; mixed-content check passes on the webview             |
-| **M3** Frontend    | Webview: chat panel, MapLibre map, elevation profile, trip list; refetch model (§3)                                                                                                                                                                                                   | The M1 flow runs from the UI                                                                                                                                     |
-| **M4** Iterate     | Remaining scope, order decided when we get here: `find_pois` (Overpass), validator (all §11 rules), `conditions`, region rules file, `report.md`, map edits (§10), `amend_stage`, `scout` and `critique`; then one of Workbench, `events.jsonl` undo/history, or BRouter offline pack | A planted violation is caught, fixed by re-routing one stage only, and clears; a map edit appears in the next digest                                             |
+|                    | Scope                                                                                                                                                                                                                                                                                                                              | Done when                                                                                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **M0** Foundations | Bun workspace, four packages + `apps/cli`, import-law lint, Prettier, `core` (ids, contracts, ports, phase, digest, D+, GPX serializer)                                                                                                                                                                                            | `bun run check` passes. **Done.**                                                                                                                                |
+| **M1** Agent (CLI) | `store` (atomic writes, `trip.json`, `routes/`, chat JSONL, data/cache dir seams; settings come later (keys and model slots come from `.env` and flags)), `adapters` (IGN geocoder, ORS `foot-hiking` with elevation, disk cache), `agent` (planner, tools in §9.3 marked M1, Anthropic/Mistral model slots), `apps/cli` chat REPL | A fake-LLM test drives a full turn including an `ask_user` resume; "2-day loop from X" run live from the terminal writes a trip folder whose GPX opens in OsmAnd |
+| **M2** Backend     | Electrobun main process, hardened loopback with a ping route, tRPC router, `/api/chat` stream, single-instance lock, keychain `SecretsPort`; `apps/desktop/src/bun` reuses the M1 packages                                                                                                                                         | App launches; loopback rejects a wrong Host or token; the M1 flow works through tRPC and SSE without a UI; mixed-content check passes on the webview             |
+| **M3** Frontend    | Webview: chat panel, MapLibre map, elevation profile, trip list; refetch model (§3)                                                                                                                                                                                                                                                | The M1 flow runs from the UI                                                                                                                                     |
+| **M4** Iterate     | Remaining scope, order decided when we get here: `find_pois` (Overpass), validator (all §11 rules), `conditions`, region rules file, `report.md`, map edits (§10), `amend_stage`, `scout` and `critique`; then one of Workbench, `events.jsonl` undo/history, or BRouter offline pack                                              | A planted violation is caught, fixed by re-routing one stage only, and clears; a map edit appears in the next digest                                             |
 
 ---
 
 ## 19. Seam directory
 
-| Seam                    | Location                                                      | What it swaps                                         |
-| ----------------------- | ------------------------------------------------------------- | ----------------------------------------------------- |
-| Storage                 | composition root + `packages/store`                           | file layout, in one place                             |
-| Routing                 | `RoutingPort` + `packages/adapters/routing`                   | ORS ↔ GraphHopper ↔ BRouter                           |
-| Geocoding               | `GeocodePort`                                                 | IGN ↔ Photon ↔ Nominatim                              |
-| Elevation               | `ElevationPort`                                               | Terrarium ↔ IGN RGE ALTI                              |
-| Secrets                 | `SecretsPort`                                                 | `.env` ↔ keychain ↔ env var ↔ key file                |
-| LLM per role            | settings model slots + engine factory in the composition root | provider/model, local vs hosted                       |
-| Data and cache location | `<APP>_DATA_DIR`, `<APP>_CACHE_DIR`                           | where files live (also the test seams)                |
-| Agent construction      | turn handler takes an optional agent builder                  | scripted engines in tests                             |
-| Sub-agent execution     | tool `execute` for `scout` / `critique`                       | synchronous now, Workbench job later, same tool names |
-| Composition root        | `apps/cli` ↔ `apps/desktop/src/bun`                           | which shell drives the same packages                  |
-| Transport               | `apps/desktop/src/bun` server + webview client links          | hardened loopback ↔ Electrobun RPC                    |
+| Seam                           | Location                                                      | What it swaps                                         |
+| ------------------------------ | ------------------------------------------------------------- | ----------------------------------------------------- |
+| Storage                        | composition root + `packages/store`                           | file layout, in one place                             |
+| Routing                        | `RoutingPort` + `packages/adapters/routing`                   | ORS ↔ GraphHopper ↔ BRouter                           |
+| Geocoding                      | `GeocodePort`                                                 | IGN ↔ Photon ↔ Nominatim                              |
+| Elevation                      | `ElevationPort`                                               | Terrarium ↔ IGN RGE ALTI                              |
+| Secrets                        | `SecretsPort`                                                 | `.env` ↔ keychain ↔ env var ↔ key file                |
+| LLM per role                   | settings model slots + engine factory in the composition root | provider/model, local vs hosted                       |
+| Data, cache and trips location | `<APP>_DATA_DIR`, `<APP>_CACHE_DIR`, `<APP>_TRIPS_DIR`        | where files live (also the test seams)                |
+| Agent construction             | turn handler takes an optional agent builder                  | scripted engines in tests                             |
+| Sub-agent execution            | tool `execute` for `scout` / `critique`                       | synchronous now, Workbench job later, same tool names |
+| Composition root               | `apps/cli` ↔ `apps/desktop/src/bun`                           | which shell drives the same packages                  |
+| Transport                      | `apps/desktop/src/bun` server + webview client links          | hardened loopback ↔ Electrobun RPC                    |
 
 ---
 
@@ -600,22 +606,30 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 
 **Decisions in v1** (from the 2026-10-28 review):
 
-| Decision                | Choice                                                                                          | Alternative kept open                                                                          |
-| ----------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Transport               | Hardened loopback (§3.1): keeps tRPC + `useChat` streaming unchanged                            | Electrobun typed RPC: already encrypted, but streaming and the tRPC link must be built by hand |
-| Trip storage            | `trip.json` is the source of truth + `routes/` as evidence; `trip.prev.json` for one-level undo | `events.jsonl` event log, when undo/history is needed (M4)                                     |
-| Route geometry          | stored in the trip folder, content-addressed `routeId`                                          | — (cache-only geometry made trips unrebuildable)                                               |
-| Phase                   | derived from trip state                                                                         | — (transcript parsing broke with map edits)                                                    |
-| Sub-agents              | synchronous tools in v0                                                                         | Workbench with ack-and-steer (M4)                                                              |
-| Default router          | ORS `foot-hiking`                                                                               | GraphHopper as optional adapter                                                                |
-| Chats                   | JSONL, one message per line                                                                     | — (whole-file JSON rewrite grew per turn)                                                      |
-| Push events             | none in v0; refetch after mutations                                                             | notify-only tRPC subscription, with the Workbench                                              |
-| Build order (v1.1)      | Agent via CLI, then backend, then frontend                                                      | Desktop shell first (original M0)                                                              |
-| Packages (v1.1)         | Four packages from M0                                                                           | Start with two, split at M2                                                                    |
-| Ids (v1.1)              | UUID v4 for `tripId` / `chatId`                                                                 | ULID (sortable, needs a dependency or own code)                                                |
-| Keys (v1.1)             | `.env` through `SecretsPort` until the backend phase                                            | Keychain from day one                                                                          |
-| Travel from home (v1.1) | `brief.travel` + global home place; time limit is an unverified warning                         | Transit service now; straight-line distance proxy                                              |
-| Result type (v1.1)      | Own `Result<T, AdapterError>` in `core`                                                         | neverthrow                                                                                     |
+| Decision                 | Choice                                                                                                | Alternative kept open                                                                          |
+| ------------------------ | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Transport                | Hardened loopback (§3.1): keeps tRPC + `useChat` streaming unchanged                                  | Electrobun typed RPC: already encrypted, but streaming and the tRPC link must be built by hand |
+| Trip storage             | `trip.json` is the source of truth + `routes/` as evidence; `trip.prev.json` for one-level undo       | `events.jsonl` event log, when undo/history is needed (M4)                                     |
+| Route geometry           | stored in the trip folder, content-addressed `routeId`                                                | — (cache-only geometry made trips unrebuildable)                                               |
+| Phase                    | derived from trip state                                                                               | — (transcript parsing broke with map edits)                                                    |
+| Sub-agents               | synchronous tools in v0                                                                               | Workbench with ack-and-steer (M4)                                                              |
+| Default router           | ORS `foot-hiking`                                                                                     | GraphHopper as optional adapter                                                                |
+| Chats                    | JSONL, one message per line                                                                           | — (whole-file JSON rewrite grew per turn)                                                      |
+| Push events              | none in v0; refetch after mutations                                                                   | notify-only tRPC subscription, with the Workbench                                              |
+| Build order (v1.1)       | Agent via CLI, then backend, then frontend                                                            | Desktop shell first (original M0)                                                              |
+| Packages (v1.1)          | Four packages from M0                                                                                 | Start with two, split at M2                                                                    |
+| Ids (v1.1)               | UUID v4 for `tripId` / `chatId`                                                                       | ULID (sortable, needs a dependency or own code)                                                |
+| Keys (v1.1)              | `.env` through `SecretsPort` until the backend phase                                                  | Keychain from day one                                                                          |
+| Travel from home (v1.1)  | `brief.travel` + global home place; time limit is an unverified warning                               | Transit service now; straight-line distance proxy                                              |
+| Result type (v1.1)       | Own `Result<T, AdapterError>` in `core`                                                               | neverthrow                                                                                     |
+| Store ports (v1.1)       | Synchronous `Result<T, StoreError>`; network ports stay async                                         | Async everywhere (risks interleaved read-modify-write)                                         |
+| Settings (v1.1)          | Deferred; `.env` and CLI flags until a UI needs them                                                  | Settings file in M1                                                                            |
+| Trip folder (v1.1)       | `<yyyy-mm>-<slug>-<8 hex of tripId>`, suffix is a hint only                                           | `<yyyy-mm>-<slug>` with counters on collision                                                  |
+| Route id (v1.1)          | sha256 of a canonical, rounded serialisation                                                          | hash of whatever bytes were written                                                            |
+| Stage km (v1.1)          | Our own haversine length, not the router's `distanceM`                                                | Router figure                                                                                  |
+| `RoutedStage` (v1.1)     | Router answer for a whole stage (was `RouteLeg`)                                                      | Per-pair legs                                                                                  |
+| Chat lines (v1.1)        | Own `ChatMessage` zod contract (text, tool-call, tool-result), mapped to AI SDK messages in the agent | Store AI SDK `UIMessage` as is                                                                 |
+| App data location (v1.1) | One hidden `~/.gpx_builder/` with `data/`, `cache/`, `trips/` on every OS; env vars override          | Per-OS app-data folders and `~/Documents/<App>/trips`                                          |
 
 **Open questions:**
 
@@ -630,3 +644,5 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 - **GPX formatting:** compact (today) or pretty-printed.
 - **`Stage.overnight`** stores only the kind; the night's place is the stage's `to` waypoint. Revisit when the `overnight` rule is built.
 - **M4 ordering** relative to the frontend, once M1 is done.
+- **Home place without settings:** it has no home until `settings.json` exists; for now the planner takes it from the conversation or a flag.
+- **Deferred file safety:** Windows rename retry and the trip rescan with `trips-index.json`.

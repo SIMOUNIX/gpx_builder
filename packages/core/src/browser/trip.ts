@@ -31,6 +31,8 @@ export const Stage = z.object({
   stats: z
     .object({ km: z.number(), gainM: z.number(), lossM: z.number() })
     .optional(),
+  /** One per waypoint, in the order [from, ...via, to]: how far the router moved it onto a path. */
+  snapDistancesM: z.array(z.number()).optional(),
 });
 export type Stage = z.infer<typeof Stage>;
 

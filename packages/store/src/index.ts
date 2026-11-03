@@ -1,1 +1,2 @@
-export const PACKAGE = "store";
+export { resolveDirs, type Dirs } from "./paths";
+export { createTripStore } from "./trip-store";

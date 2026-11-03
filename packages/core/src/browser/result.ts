@@ -10,6 +10,14 @@ export type AdapterError = {
   retryAfterSec?: number;
 };
 
+/** A local file store failed. `corrupt` = unparseable, `invalid` = fails the schema. */
+export type StoreError = {
+  kind:
+    "not-found" | "invalid" | "corrupt" | "newer-version" | "duplicate" | "io";
+  message: string;
+  path?: string;
+};
+
 export type Result<T, E = AdapterError> =
   { ok: true; value: T } | { ok: false; error: E };
 

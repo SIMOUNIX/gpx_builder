@@ -1,4 +1,13 @@
-import type { LngLat, PlaceId, Position3, Result } from "../browser/index";
+import type {
+  LngLat,
+  PlaceId,
+  Position3,
+  Result,
+  RouteId,
+  StoreError,
+  Trip,
+  TripId,
+} from "../browser/index";
 
 export type GeocodeCandidate = {
   placeId: PlaceId;
@@ -33,6 +42,16 @@ export interface RoutingPort {
     waypoints: LngLat[];
     profile: string;
   }): Promise<Result<RoutedStage>>;
+}
+
+/** Owns the trip folders on disk. Synchronous: one process, one writer. */
+export interface TripStorePort {
+  create(trip: Trip): Result<void, StoreError>;
+  load(tripId: TripId): Result<Trip, StoreError>;
+  /** Stamps `updatedAt` and keeps the previous version as trip.prev.json. */
+  save(trip: Trip): Result<void, StoreError>;
+  writeRoute(tripId: TripId, line: Position3[]): Result<RouteId, StoreError>;
+  readRoute(tripId: TripId, routeId: RouteId): Result<Position3[], StoreError>;
 }
 
 export interface SecretsPort {
