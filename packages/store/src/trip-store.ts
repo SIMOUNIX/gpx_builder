@@ -13,6 +13,7 @@ import {
   type TripStorePort,
 } from "@gpx-builder/core/server";
 import { sweepStaleTmp, writeFileAtomic } from "./atomic";
+import { ioError } from "./io-error";
 import { parseRoute, routeIdOf, serializeRoute } from "./route-file";
 
 const KNOWN_V = 1;
@@ -40,12 +41,6 @@ export function folderName(trip: Trip): string {
       .replace(/-+$/, "") || "trip";
   return `${trip.createdAt.slice(0, 7)}-${slug}-${shortId(trip.tripId)}`;
 }
-
-const ioError = (e: unknown, path?: string): StoreError => ({
-  kind: "io",
-  message: e instanceof Error ? e.message : String(e),
-  path,
-});
 
 const serialize = (trip: Trip) => `${JSON.stringify(trip, null, 2)}\n`;
 

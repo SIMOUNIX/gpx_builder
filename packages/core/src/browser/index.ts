@@ -1,4 +1,5 @@
 export * from "./brief";
+export * from "./chat";
 export * from "./derived";
 export * from "./digest";
 export * from "./elevation";

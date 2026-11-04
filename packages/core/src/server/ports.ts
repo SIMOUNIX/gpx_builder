@@ -1,4 +1,6 @@
 import type {
+  ChatId,
+  ChatMessage,
   LngLat,
   PlaceId,
   Position3,
@@ -60,6 +62,14 @@ export interface TripStorePort {
     tripId: TripId,
     files: Record<string, string>,
   ): Result<string[], StoreError>;
+}
+
+/** Owns the chat transcripts on disk. Synchronous: one process, one writer. */
+export interface ChatStorePort {
+  /** Appends one message, creating the chat on its first message. Refuses a quarantined chat. */
+  append(chatId: ChatId, message: ChatMessage): Result<void, StoreError>;
+  /** `not-found` when the chat doesn't exist, `corrupt` when it was quarantined. */
+  load(chatId: ChatId): Result<ChatMessage[], StoreError>;
 }
 
 export interface SecretsPort {
