@@ -1,0 +1,67 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "W",
+        "osm_id": 262518389,
+        "osm_key": "amenity",
+        "osm_value": "shelter",
+        "type": "house",
+        "name": "Gare de Fontainebleau - Avon",
+        "street": "Rue des Yèbles",
+        "locality": "Changis",
+        "city": "Avon",
+        "county": "Seine-et-Marne",
+        "state": "Île-de-France",
+        "country": "France",
+        "postcode": "77210",
+        "countrycode": "FR",
+        "extent": [2.7263826, 48.4153692, 2.7264483, 48.4152901]
+      },
+      "geometry": { "type": "Point", "coordinates": [2.7264157, 48.4153298] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "W",
+        "osm_id": 262518386,
+        "osm_key": "amenity",
+        "osm_value": "shelter",
+        "type": "house",
+        "name": "Gare de Fontainebleau - Avon",
+        "street": "Rue des Yèbles",
+        "locality": "Changis",
+        "city": "Avon",
+        "county": "Seine-et-Marne",
+        "state": "Île-de-France",
+        "country": "France",
+        "postcode": "77210",
+        "countrycode": "FR",
+        "extent": [2.7264961, 48.4149008, 2.7265684, 48.4148205]
+      },
+      "geometry": { "type": "Point", "coordinates": [2.7265322, 48.4148606] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "N",
+        "osm_id": 2681853477,
+        "osm_key": "highway",
+        "osm_value": "bus_stop",
+        "type": "house",
+        "name": "Gare de Fontainebleau - Avon",
+        "street": "Rue des Yèbles",
+        "locality": "Changis",
+        "city": "Avon",
+        "county": "Seine-et-Marne",
+        "state": "Île-de-France",
+        "country": "France",
+        "postcode": "77210",
+        "countrycode": "FR"
+      },
+      "geometry": { "type": "Point", "coordinates": [2.7264087, 48.4153029] }
+    }
+  ]
+}

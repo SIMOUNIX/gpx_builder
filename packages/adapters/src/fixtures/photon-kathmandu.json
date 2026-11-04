@@ -1,0 +1,62 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "R",
+        "osm_id": 12394677,
+        "osm_key": "place",
+        "osm_value": "city",
+        "type": "city",
+        "name": "काठमाडौं",
+        "county": "काठमाडौं जिल्ला",
+        "state": "बागमती प्रदेश",
+        "country": "Nepal",
+        "countrycode": "NP",
+        "extra": { "admin_level": "7" },
+        "extent": [85.2771438, 27.7500026, 85.3731257, 27.6679494]
+      },
+      "geometry": { "type": "Point", "coordinates": [85.3205817, 27.708317] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "R",
+        "osm_id": 16110465,
+        "osm_key": "boundary",
+        "osm_value": "administrative",
+        "type": "district",
+        "name": "Kathmandu-17",
+        "city": "काठमाडौं",
+        "county": "काठमाडौं जिल्ला",
+        "state": "बागमती प्रदेश",
+        "country": "Nepal",
+        "countrycode": "NP",
+        "extra": { "admin_level": "9" },
+        "extent": [85.3021247, 27.7160262, 85.3111426, 27.7087929]
+      },
+      "geometry": { "type": "Point", "coordinates": [85.3055144, 27.7125767] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "R",
+        "osm_id": 16110489,
+        "osm_key": "boundary",
+        "osm_value": "administrative",
+        "type": "district",
+        "name": "Kathmandu-02",
+        "city": "काठमाडौं",
+        "county": "काठमाडौं जिल्ला",
+        "state": "बागमती प्रदेश",
+        "country": "Nepal",
+        "postcode": "21255",
+        "countrycode": "NP",
+        "extra": { "admin_level": "9" },
+        "extent": [85.3172463, 27.7258011, 85.3314159, 27.7170892]
+      },
+      "geometry": { "type": "Point", "coordinates": [85.323113, 27.7214611] }
+    }
+  ]
+}

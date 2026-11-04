@@ -1,0 +1,61 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "R",
+        "osm_id": 104836,
+        "osm_key": "place",
+        "osm_value": "town",
+        "type": "city",
+        "name": "Chamonix-Mont-Blanc",
+        "county": "Haute-Savoie",
+        "state": "Auvergne-Rhône-Alpes",
+        "country": "France",
+        "postcode": "74400",
+        "countrycode": "FR",
+        "extra": { "admin_level": "8" },
+        "extent": [6.8137453, 46.0311495, 7.0444709, 45.8284379]
+      },
+      "geometry": { "type": "Point", "coordinates": [6.8700009, 45.9230969] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "N",
+        "osm_id": 12625203937,
+        "osm_key": "place",
+        "osm_value": "farm",
+        "type": "locality",
+        "name": "Chamonix",
+        "district": "Franschhoek",
+        "city": "Stellenbosch Local Municipality",
+        "county": "Cape Winelands District Municipality",
+        "state": "Western Cape",
+        "country": "South Africa",
+        "postcode": "7690",
+        "countrycode": "ZA"
+      },
+      "geometry": { "type": "Point", "coordinates": [19.1349703, -33.9010652] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "N",
+        "osm_id": 14120187808,
+        "osm_key": "place",
+        "osm_value": "hamlet",
+        "type": "district",
+        "name": "Chamonix",
+        "city": "Magland",
+        "county": "Haute-Savoie",
+        "state": "Auvergne-Rhône-Alpes",
+        "country": "France",
+        "postcode": "74300",
+        "countrycode": "FR"
+      },
+      "geometry": { "type": "Point", "coordinates": [6.6117818, 46.0295495] }
+    }
+  ]
+}

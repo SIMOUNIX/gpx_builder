@@ -27,7 +27,13 @@ import { ioError } from "./io-error";
 const ChatLine = z.object({ v: z.literal(1), message: ChatMessage });
 
 function parseLine(line: string): ChatMessage | undefined {
-  const parsed = ChatLine.safeParse(JSON.parse(line));
+  let json: unknown;
+  try {
+    json = JSON.parse(line);
+  } catch {
+    return undefined;
+  }
+  const parsed = ChatLine.safeParse(json);
   return parsed.success ? parsed.data.message : undefined;
 }
 

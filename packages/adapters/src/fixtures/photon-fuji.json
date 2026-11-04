@@ -1,0 +1,63 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "N",
+        "osm_id": 6899261524,
+        "osm_key": "natural",
+        "osm_value": "peak",
+        "type": "other",
+        "name": "Mount Fuji",
+        "city": "Town of Colfax",
+        "county": "Dunn",
+        "state": "Wisconsin",
+        "country": "United States",
+        "countrycode": "US"
+      },
+      "geometry": { "type": "Point", "coordinates": [-91.7707739, 44.9456207] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "W",
+        "osm_id": 165271248,
+        "osm_key": "highway",
+        "osm_value": "residential",
+        "type": "street",
+        "name": "Mount Fuji Street",
+        "locality": "Filinvest Homes 1",
+        "district": "2nd District",
+        "city": "Quezon City",
+        "county": "Eastern Manila District",
+        "state": "Metro Manila",
+        "country": "Philippines",
+        "postcode": "1126",
+        "countrycode": "PH",
+        "extent": [121.0918468, 14.6799728, 121.0955194, 14.6782287]
+      },
+      "geometry": { "type": "Point", "coordinates": [121.0936017, 14.6792277] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osm_type": "W",
+        "osm_id": 20093488,
+        "osm_key": "highway",
+        "osm_value": "residential",
+        "type": "street",
+        "name": "Mount Fuji Street",
+        "locality": "Panorama Hills",
+        "district": "Cupang",
+        "city": "Antipolo",
+        "state": "Rizal",
+        "country": "Philippines",
+        "postcode": "1811",
+        "countrycode": "PH",
+        "extent": [121.1336178, 14.6397056, 121.1341989, 14.638554]
+      },
+      "geometry": { "type": "Point", "coordinates": [121.1339084, 14.6391298] }
+    }
+  ]
+}

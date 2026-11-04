@@ -72,6 +72,12 @@ export interface ChatStorePort {
   load(chatId: ChatId): Result<ChatMessage[], StoreError>;
 }
 
+/** Remembers text for a while. Synchronous like the stores; a miss is `undefined`. */
+export interface CachePort {
+  get(key: string): string | undefined;
+  set(key: string, value: string, ttlSec: number): void;
+}
+
 export interface SecretsPort {
   get(name: string): Promise<string | undefined>;
 }

@@ -30,6 +30,7 @@
       "name": "@gpx-builder/adapters",
       "dependencies": {
         "@gpx-builder/core": "workspace:*",
+        "zod": "4.6.7",
       },
     },
     "packages/agent": {
