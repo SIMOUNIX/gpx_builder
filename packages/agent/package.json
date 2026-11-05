@@ -3,7 +3,10 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@gpx-builder/core": "workspace:*"
+    "@gpx-builder/core": "workspace:*",
+    "ai": "7.0.162",
+    "@ai-sdk/anthropic": "4.0.96",
+    "zod": "4.6.7"
   },
   "exports": "./src/index.ts"
 }
