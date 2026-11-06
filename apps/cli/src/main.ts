@@ -194,8 +194,22 @@ async function main() {
   const spinner = createSpinner();
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   rl.setPrompt("> ");
+  // Ctrl-C only asks; a second one in a row (or typing exit) quits.
+  let armed = false;
+  rl.on("SIGINT", () => {
+    if (armed) {
+      spinner.stop();
+      process.exit(0);
+    }
+    armed = true;
+    spinner.stop();
+    breakLine();
+    console.log("\n(press Ctrl-C again or type exit to quit)");
+    rl.prompt(true);
+  });
   rl.prompt();
   for await (const line of rl) {
+    armed = false;
     const text = line.trim();
     if (text === "/quit" || text === "exit") break;
     if (text === "/trips") printTrips(trips);
