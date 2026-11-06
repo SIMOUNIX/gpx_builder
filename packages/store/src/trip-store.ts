@@ -187,6 +187,29 @@ export function createTripStore(opts: {
       return read.ok ? ok(read.value.trip) : read;
     },
 
+    list() {
+      if (!existsSync(tripsDir)) return ok([]);
+      try {
+        const rows = readdirSync(tripsDir, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .flatMap((d) => {
+            const read = readTripFile(join(tripsDir, d.name));
+            return read.ok
+              ? [
+                  {
+                    id: read.value.trip.tripId,
+                    name: read.value.trip.name,
+                    updatedAt: read.value.trip.updatedAt,
+                  },
+                ]
+              : []; // an unreadable folder must not hide the others
+          });
+        return ok(rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+      } catch (e) {
+        return err(ioError(e, tripsDir));
+      }
+    },
+
     save(trip) {
       const parsed = Trip.safeParse(trip);
       if (!parsed.success) {

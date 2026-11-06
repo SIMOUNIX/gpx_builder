@@ -282,13 +282,9 @@ test("route rejects an unknown stage and reports router errors", async () => {
   expect(stageId).toBeTruthy();
 });
 
-test("export_trip writes the GPX files of routed stages", async () => {
-  const { tools, trips, stageId } = await planned();
-  expect(await run(tools.export_trip, {})).toEqual({ ok: true, files: [] });
-  await run(tools.route, { stageId });
-  const out = await run<{ ok: true; files: string[] }>(tools.export_trip, {});
-  expect(out.files.some((f) => f.endsWith("day-1.gpx"))).toBe(true);
-  expect(Object.keys(trips.derived)).toContain("route-merged.gpx");
+test("export_trip is client-side too: the host asks the user first", () => {
+  const { tools } = setup();
+  expect(tools.export_trip.execute).toBeUndefined();
 });
 
 test("ask_user is client-side: no execute, so the loop stops", () => {

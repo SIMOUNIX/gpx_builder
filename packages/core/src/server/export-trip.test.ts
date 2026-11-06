@@ -48,6 +48,7 @@ function fakeStore(trip: Trip, failRead?: RouteId) {
   };
   const store: TripStorePort = {
     create: unused,
+    list: unused,
     save: unused,
     writeRoute: unused,
     load: () => ok(trip),
