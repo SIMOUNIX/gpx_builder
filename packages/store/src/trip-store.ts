@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import {
@@ -185,6 +191,17 @@ export function createTripStore(opts: {
       }
       const read = readTripFile(found.value);
       return read.ok ? ok(read.value.trip) : read;
+    },
+
+    delete(tripId) {
+      const found = find(tripsDir, tripId);
+      if (!found.ok) return found;
+      try {
+        rmSync(found.value, { recursive: true });
+        return ok(undefined);
+      } catch (e) {
+        return err(ioError(e, found.value));
+      }
     },
 
     list() {

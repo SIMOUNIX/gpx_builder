@@ -191,6 +191,13 @@ async function main() {
     if (pending.ok && pending.value) console.log(renderQuestion(pending.value));
   }
 
+  // A new trip nobody wrote to is not worth keeping.
+  let sent = false;
+  const quit = (): never => {
+    if (!args.trip && !sent) trips.delete(tripId);
+    process.exit(0);
+  };
+
   const spinner = createSpinner();
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   rl.setPrompt("> ");
@@ -199,7 +206,7 @@ async function main() {
   rl.on("SIGINT", () => {
     if (armed) {
       spinner.stop();
-      process.exit(0);
+      quit();
     }
     armed = true;
     spinner.stop();
@@ -214,6 +221,7 @@ async function main() {
     if (text === "/quit" || text === "exit") break;
     if (text === "/trips") printTrips(trips);
     else if (text) {
+      sent = true;
       spinner.start();
       const r = await runTurn(deps, text, {
         onText: (d) => {
@@ -249,6 +257,7 @@ async function main() {
     rl.prompt();
   }
   rl.close();
+  quit();
 }
 
 if (import.meta.main) await main();

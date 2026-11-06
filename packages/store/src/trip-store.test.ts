@@ -68,6 +68,21 @@ test("list returns readable trips newest first and skips broken folders", () => 
   ]);
 });
 
+test("delete removes the whole trip folder and reports an unknown trip", () => {
+  const t = mk();
+  must(store().create(t));
+  must(
+    store().writeRoute(t.tripId, [
+      [2.7, 48.4, 100],
+      [2.71, 48.41, 110],
+    ]),
+  );
+  must(store().delete(t.tripId));
+  expect(readdirSync(dir)).toEqual([]);
+  expect(kind(store().load(t.tripId))).toBe("not-found");
+  expect(kind(store().delete(t.tripId))).toBe("not-found");
+});
+
 test("create then load gives the same trip; folder is <yyyy-mm>-<slug>-<8 hex>", () => {
   const t = mk();
   must(store().create(t));

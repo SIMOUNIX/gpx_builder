@@ -21,6 +21,7 @@ export function memoryTrips(initial: Trip) {
   const derived: Record<string, string> = {};
   const store: TripStorePort = {
     create: () => ok(undefined),
+    delete: () => ok(undefined),
     list: () =>
       ok([{ id: trip.tripId, name: trip.name, updatedAt: trip.updatedAt }]),
     load: () => ok(trip),

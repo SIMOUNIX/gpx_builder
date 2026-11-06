@@ -674,6 +674,7 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 | Chat id (v1.1)               | `chatId` = `chat_<uuid of the trip>`: one chat per trip, no mapping to store                                                                          | Independent chat uuid with a stored link                                                       |
 | Listing trips (v1.1)         | `TripStorePort.list()` reads each `trip.json` (skips unreadable), newest `updatedAt` first                                                            | Rescan with `trips-index.json` (deferred, see below)                                           |
 | CLI commands (v1.1)          | `bun cli` new trip; `--trip <id>` resume; `bun cli trips`; `--verbose`; in the REPL `/trips`, `/quit`, `exit`, Ctrl-D                                 | —                                                                                              |
+| Empty trips (v1.1)           | `TripStorePort.delete(tripId)` removes the folder; the CLI deletes a new trip on quit if no message was sent (never a resumed one)                    | Create the trip lazily on the first message                                                    |
 | No `--home` flag (v1.1)      | The start point is given in the conversation and stored in `brief.travel.from`                                                                        | A `--home` flag or a global home place                                                         |
 
 **Open questions:**
