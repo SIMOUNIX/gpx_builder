@@ -49,6 +49,10 @@ export type TurnOutcome = {
 
 export type TurnError = { message: string };
 
+/** Calls the host answers; any other unanswered call is a leftover of a crash. */
+const isClientSide = (c: { name: string }) =>
+  c.name === "ask_user" || c.name === "export_trip";
+
 const asQuestion = (c: {
   toolCallId: string;
   name: string;
@@ -76,7 +80,7 @@ export function pendingQuestion(
       ? ok(undefined)
       : err({ message: loaded.error.message });
   }
-  const [first] = pendingToolCalls(loaded.value);
+  const [first] = pendingToolCalls(loaded.value).filter(isClientSide);
   return ok(first ? asQuestion(first) : undefined);
 }
 
@@ -110,9 +114,10 @@ export async function runTurn(
 
   // The user's words either answer the waiting question or start a new message.
   const pending = pendingToolCalls(history);
+  const firstAsk = pending.find(isClientSide);
   if (pending.length > 0) {
     let answer: unknown = { answer: userText };
-    if (pending[0]!.name === "export_trip") {
+    if (firstAsk?.name === "export_trip") {
       const yes = ["y", "yes"].includes(userText.trim().toLowerCase());
       if (!yes) answer = { ok: false, declined: true };
       else {
@@ -125,13 +130,18 @@ export async function runTurn(
     append({
       ...mint(),
       role: "tool",
-      parts: pending.map((c, i) => ({
+      parts: pending.map((c) => ({
         type: "tool-result" as const,
         toolCallId: c.toolCallId,
-        output: i === 0 ? answer : { skipped: true },
+        output: !isClientSide(c)
+          ? { ok: false, error: "interrupted before it finished" }
+          : c === firstAsk
+            ? answer
+            : { skipped: true },
       })),
     });
-  } else {
+  }
+  if (!firstAsk) {
     append({
       ...mint(),
       role: "user",
@@ -203,6 +213,8 @@ export async function runTurn(
           part.toolName,
           (part.output as { ok?: unknown } | undefined)?.ok !== false,
         );
+      else if (part.type === "tool-error")
+        hooks.onToolResult?.(part.toolName, false);
       else if (part.type === "error") modelError = part.error;
     }
     if (modelError) throw modelError;

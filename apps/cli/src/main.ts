@@ -48,12 +48,19 @@ export function parseArgs(argv: string[]): Args {
 export const chatIdOf = (tripId: TripId): ChatId =>
   ChatId.parse(`chat_${tripId.slice("trip_".length)}`);
 
+/** Drops control characters (ANSI/OSC escapes included) from text the model or a provider wrote; keeps \n and \t. */
+export const sanitize = (s: string): string =>
+  // eslint-disable-next-line no-control-regex
+  s.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, "");
+
 export const renderQuestion = (q: PendingQuestion): string =>
   q.tool === "export_trip"
     ? "Write the GPX files? [y/N]"
-    : q.options?.length
-      ? `${q.question} (${q.options.join(" / ")})`
-      : q.question;
+    : sanitize(
+        q.options?.length
+          ? `${q.question} (${q.options.join(" / ")})`
+          : q.question,
+      );
 
 export const statusWord = (tool?: string): string =>
   tool === "find_place"
@@ -63,7 +70,16 @@ export const statusWord = (tool?: string): string =>
       : "thinking…";
 
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
-const CLEAR = "\r\x1b[2K";
+const tty = Boolean(process.stdout.isTTY);
+const CLEAR = tty ? "\r\x1b[2K" : "";
+
+// Streamed text rarely ends in a newline; end the line before drawing over it.
+let midLine = false;
+const breakLine = () => {
+  if (!midLine) return;
+  process.stdout.write("\n");
+  midLine = false;
+};
 const FRAMES = ["⛰", "🏔", "🗻"];
 
 function createSpinner() {
@@ -73,6 +89,8 @@ function createSpinner() {
   const draw = () => process.stdout.write(`${CLEAR}${FRAMES[n++ % 3]} ${word}`);
   return {
     start(tool?: string) {
+      if (!tty) return;
+      breakLine();
       word = statusWord(tool);
       if (!timer) timer = setInterval(draw, 150);
       draw();
@@ -88,9 +106,10 @@ function createSpinner() {
 
 function printTrips(trips: TripStorePort) {
   const list = trips.list();
-  if (!list.ok) return console.error(`error: ${list.error.message}`);
+  if (!list.ok) return console.error(`error: ${sanitize(list.error.message)}`);
   if (list.value.length === 0) return console.log("no trips yet");
-  for (const t of list.value) console.log(`${t.id}  ${t.name}  ${t.updatedAt}`);
+  for (const t of list.value)
+    console.log(`${t.id}  ${sanitize(t.name)}  ${t.updatedAt}`);
 }
 
 async function main() {
@@ -105,17 +124,18 @@ async function main() {
 
   const secrets = createEnvSecrets();
   const orsKey = await secrets.get("ORS_API_KEY");
-  const missing = [
-    ...(orsKey ? [] : ["ORS_API_KEY"]),
-    ...((await secrets.get("ANTHROPIC_API_KEY")) ? [] : ["ANTHROPIC_API_KEY"]),
-  ];
-  if (!orsKey || missing.length > 0) {
+  const anthropicKey = await secrets.get("ANTHROPIC_API_KEY");
+  if (!orsKey || !anthropicKey) {
+    const missing = [
+      !orsKey && "ORS_API_KEY",
+      !anthropicKey && "ANTHROPIC_API_KEY",
+    ].filter(Boolean);
     console.error(`error: missing ${missing.join(" and ")} (set in .env)`);
     process.exit(1);
   }
   const model = await createStrongModel(secrets);
   if (!model.ok) {
-    console.error(`error: ${model.error.message}`);
+    console.error(`error: ${sanitize(model.error.message)}`);
     process.exit(1);
   }
 
@@ -132,7 +152,7 @@ async function main() {
       process.exit(1);
     }
     tripId = parsed.data;
-    console.log(`resuming "${loaded.value.name}" (${tripId})`);
+    console.log(`resuming "${sanitize(loaded.value.name)}" (${tripId})`);
   } else {
     const at = new Date().toISOString();
     const trip: Trip = {
@@ -148,7 +168,7 @@ async function main() {
     };
     const created = trips.create(trip);
     if (!created.ok) {
-      console.error(`error: ${created.error.message}`);
+      console.error(`error: ${sanitize(created.error.message)}`);
       process.exit(1);
     }
     tripId = trip.tripId;
@@ -184,21 +204,32 @@ async function main() {
       const r = await runTurn(deps, text, {
         onText: (d) => {
           spinner.stop();
-          process.stdout.write(d);
+          const clean = sanitize(d);
+          if (clean) midLine = !clean.endsWith("\n");
+          process.stdout.write(clean);
         },
         onToolCall: (name, input) => {
           spinner.start(name);
-          if (args.verbose)
-            console.log(`${CLEAR}${dim(`→ ${name} ${JSON.stringify(input)}`)}`);
+          if (args.verbose) {
+            breakLine();
+            console.log(
+              `${CLEAR}${dim(`→ ${sanitize(name)} ${JSON.stringify(input)}`)}`,
+            );
+          }
         },
         onToolResult: (name, ok) => {
-          if (args.verbose)
-            console.log(`${CLEAR}${dim(`${ok ? "✓" : "✗"} ${name}`)}`);
+          if (args.verbose) {
+            breakLine();
+            console.log(
+              `${CLEAR}${dim(`${ok ? "✓" : "✗"} ${sanitize(name)}`)}`,
+            );
+          }
         },
       });
       spinner.stop();
+      midLine = false;
       console.log();
-      if (!r.ok) console.error(`error: ${r.error.message}`);
+      if (!r.ok) console.error(`error: ${sanitize(r.error.message)}`);
       else if (r.value.pending) console.log(renderQuestion(r.value.pending));
     }
     rl.prompt();

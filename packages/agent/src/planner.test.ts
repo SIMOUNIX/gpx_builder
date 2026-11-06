@@ -304,3 +304,41 @@ test("anything but y/yes declines the export and writes nothing", async () => {
   expect(Object.keys(trips.derived)).toEqual([]);
   expect(JSON.stringify(model.doStreamCalls[1]!.prompt)).toContain("declined");
 });
+
+test("a leftover non-client call is closed as interrupted and the input is a normal message", async () => {
+  const { chats, deps } = setup([{ text: "ok" }]);
+  chats.append(deps.chatId, {
+    id: "u1",
+    createdAt: "2026-11-05T10:00:00.000Z",
+    role: "user",
+    parts: [{ type: "text", text: "route it" }],
+  });
+  chats.append(deps.chatId, {
+    id: "a1",
+    createdAt: "2026-11-05T10:00:01.000Z",
+    role: "assistant",
+    parts: [{ type: "tool-call", toolCallId: "c1", name: "route", input: {} }],
+  });
+  const p = pendingQuestion(chats, deps.chatId);
+  expect(p).toEqual({ ok: true, value: undefined }); // not shown as a question
+  await runTurn(deps, "hello again");
+  const all = chats.all();
+  expect(all[2]).toMatchObject({
+    role: "tool",
+    parts: [{ toolCallId: "c1", output: { ok: false } }],
+  });
+  expect(all[3]).toMatchObject({ role: "user" });
+  expect(JSON.stringify(all[3])).toContain("hello again");
+});
+
+test("a tool that throws reports a failed result to the hook", async () => {
+  const { deps } = setup([
+    { calls: [{ name: "find_place", input: { query: 5 } }] },
+    { text: "done" },
+  ]);
+  const seen: string[] = [];
+  await runTurn(deps, "go", {
+    onToolResult: (n, ok) => seen.push(`${n} ${ok}`),
+  });
+  expect(seen).toEqual(["find_place false"]);
+});

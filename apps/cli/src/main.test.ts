@@ -5,7 +5,13 @@ import { createTripStore } from "@gpx-builder/store";
 import { createPhotonGeocoder } from "@gpx-builder/adapters";
 import { createTools } from "@gpx-builder/agent";
 import { mintTripId } from "@gpx-builder/core/server";
-import { chatIdOf, parseArgs, renderQuestion, statusWord } from "./main";
+import {
+  chatIdOf,
+  parseArgs,
+  renderQuestion,
+  sanitize,
+  statusWord,
+} from "./main";
 
 test("workspace packages resolve", () => {
   expect(fromBrowser).toBe(fromServer);
@@ -60,4 +66,17 @@ test("tools map to a status word", () => {
   expect(statusWord("route")).toBe("routing…");
   expect(statusWord("submit_brief")).toBe("thinking…");
   expect(statusWord()).toBe("thinking…");
+});
+
+test("sanitize strips escape and control characters but keeps newlines", () => {
+  expect(sanitize("a\x1b[2Jb\x1b]52;c;x\x07c\u009bd\ne\tf")).toBe(
+    "a[2Jb]52;c;xcd\ne\tf",
+  );
+  expect(
+    renderQuestion({
+      tool: "ask_user",
+      toolCallId: "c",
+      question: "Hi\x1b[2J",
+    }),
+  ).toBe("Hi[2J");
 });
