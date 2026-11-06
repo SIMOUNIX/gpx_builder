@@ -53,14 +53,16 @@ export const sanitize = (s: string): string =>
   // eslint-disable-next-line no-control-regex
   s.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, "");
 
-export const renderQuestion = (q: PendingQuestion): string =>
+/** `style` lets the host dim the options; the default is plain text. */
+export const renderQuestion = (
+  q: PendingQuestion,
+  style: (s: string) => string = (s) => s,
+): string =>
   q.tool === "export_trip"
     ? "Write the GPX files? [y/N]"
-    : sanitize(
-        q.options?.length
-          ? `${q.question} (${q.options.join(" / ")})`
-          : q.question,
-      );
+    : q.options?.length
+      ? `${sanitize(q.question)} ${style(`(${sanitize(q.options.join(" / "))})`)}`
+      : sanitize(q.question);
 
 export const statusWord = (tool?: string): string =>
   tool === "find_place"
@@ -69,8 +71,22 @@ export const statusWord = (tool?: string): string =>
       ? "routing…"
       : "thinking…";
 
-const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 const tty = Boolean(process.stdout.isTTY);
+// Colors only on a terminal, and never when NO_COLOR is set.
+const color = tty && !process.env.NO_COLOR;
+const paint = (code: string) => (s: string) =>
+  color ? `\x1b[${code}m${s}\x1b[0m` : s;
+const dim = paint("2");
+const bold = paint("1");
+const red = paint("31");
+const green = paint("1;32");
+const yellow = paint("1;33");
+const cyan = paint("36");
+const banner = (name: string, id: string) =>
+  console.log(`${bold("⛰ gpx-builder")} ${dim("·")} ${name} ${dim(`· ${id}`)}`);
+const fail = (msg: string) => console.error(red(`✗ error: ${msg}`));
+const ask = (q: PendingQuestion) =>
+  console.log(`${yellow("?")} ${renderQuestion(q, dim)}`);
 const CLEAR = tty ? "\r\x1b[2K" : "";
 
 // Streamed text rarely ends in a newline; end the line before drawing over it.
@@ -86,7 +102,8 @@ function createSpinner() {
   let timer: ReturnType<typeof setInterval> | undefined;
   let word = statusWord();
   let n = 0;
-  const draw = () => process.stdout.write(`${CLEAR}${FRAMES[n++ % 3]} ${word}`);
+  const draw = () =>
+    process.stdout.write(`${CLEAR}${FRAMES[n++ % 3]} ${dim(word)}`);
   return {
     start(tool?: string) {
       if (!tty) return;
@@ -106,16 +123,21 @@ function createSpinner() {
 
 function printTrips(trips: TripStorePort) {
   const list = trips.list();
-  if (!list.ok) return console.error(`error: ${sanitize(list.error.message)}`);
+  if (!list.ok) return fail(`${sanitize(list.error.message)}`);
   if (list.value.length === 0) return console.log("no trips yet");
-  for (const t of list.value)
-    console.log(`${t.id}  ${sanitize(t.name)}  ${t.updatedAt}`);
+  const names = list.value.map((t) => sanitize(t.name));
+  const width = Math.max(...names.map((n) => n.length));
+  list.value.forEach((t, i) =>
+    console.log(
+      `${dim(t.id)}  ${bold(names[i]!.padEnd(width))}  ${dim(t.updatedAt)}`,
+    ),
+  );
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if ("error" in args) {
-    console.error(`error: ${args.error}`);
+    fail(`${args.error}`);
     process.exit(1);
   }
   const dirs = resolveDirs();
@@ -130,12 +152,12 @@ async function main() {
       !orsKey && "ORS_API_KEY",
       !anthropicKey && "ANTHROPIC_API_KEY",
     ].filter(Boolean);
-    console.error(`error: missing ${missing.join(" and ")} (set in .env)`);
+    fail(`missing ${missing.join(" and ")} (set in .env)`);
     process.exit(1);
   }
   const model = await createStrongModel(secrets);
   if (!model.ok) {
-    console.error(`error: ${sanitize(model.error.message)}`);
+    fail(`${sanitize(model.error.message)}`);
     process.exit(1);
   }
 
@@ -148,11 +170,11 @@ async function main() {
     const loaded = parsed.success ? trips.load(parsed.data) : undefined;
     if (!parsed.success || !loaded?.ok) {
       const why = loaded?.ok === false ? loaded.error.message : "bad trip id";
-      console.error(`error: cannot resume ${args.trip}: ${why}`);
+      fail(`cannot resume ${args.trip}: ${why}`);
       process.exit(1);
     }
     tripId = parsed.data;
-    console.log(`resuming "${sanitize(loaded.value.name)}" (${tripId})`);
+    banner(sanitize(loaded.value.name), tripId);
   } else {
     const at = new Date().toISOString();
     const trip: Trip = {
@@ -168,11 +190,11 @@ async function main() {
     };
     const created = trips.create(trip);
     if (!created.ok) {
-      console.error(`error: ${sanitize(created.error.message)}`);
+      fail(`${sanitize(created.error.message)}`);
       process.exit(1);
     }
     tripId = trip.tripId;
-    console.log(`new trip ${tripId}`);
+    banner(trip.name, tripId);
   }
   const chatId = chatIdOf(tripId);
 
@@ -188,7 +210,7 @@ async function main() {
 
   if (args.trip) {
     const pending = pendingQuestion(chats, chatId);
-    if (pending.ok && pending.value) console.log(renderQuestion(pending.value));
+    if (pending.ok && pending.value) ask(pending.value);
   }
 
   // A new trip nobody wrote to is not worth keeping.
@@ -200,7 +222,7 @@ async function main() {
 
   const spinner = createSpinner();
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  rl.setPrompt("> ");
+  rl.setPrompt(`${green("›")} `);
   // Ctrl-C only asks; a second one in a row (or typing exit) quits.
   let armed = false;
   rl.on("SIGINT", () => {
@@ -222,11 +244,16 @@ async function main() {
     if (text === "/trips") printTrips(trips);
     else if (text) {
       sent = true;
+      let labeled = false;
       spinner.start();
       const r = await runTurn(deps, text, {
         onText: (d) => {
           spinner.stop();
           const clean = sanitize(d);
+          if (!labeled && clean) {
+            process.stdout.write(`${cyan("gpx")} `);
+            labeled = true;
+          }
           if (clean) midLine = !clean.endsWith("\n");
           process.stdout.write(clean);
         },
@@ -243,7 +270,7 @@ async function main() {
           if (args.verbose) {
             breakLine();
             console.log(
-              `${CLEAR}${dim(`${ok ? "✓" : "✗"} ${sanitize(name)}`)}`,
+              `${CLEAR}${ok ? green("✓") : red("✗")} ${dim(sanitize(name))}`,
             );
           }
         },
@@ -251,8 +278,8 @@ async function main() {
       spinner.stop();
       midLine = false;
       console.log();
-      if (!r.ok) console.error(`error: ${sanitize(r.error.message)}`);
-      else if (r.value.pending) console.log(renderQuestion(r.value.pending));
+      if (!r.ok) fail(`${sanitize(r.error.message)}`);
+      else if (r.value.pending) ask(r.value.pending);
     }
     rl.prompt();
   }

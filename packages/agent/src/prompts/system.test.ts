@@ -12,3 +12,9 @@ test("every phase keeps the base rules and adds its own section", () => {
     expect(text).toContain(marker);
   }
 });
+
+test('the base rules ask in batches and accept "I don\'t care"', () => {
+  const text = systemPrompt("brief");
+  expect(text).toContain("ONE ask_user call");
+  expect(text).toContain("Never insist");
+});
