@@ -15,8 +15,16 @@ const zones = ["core", "store", "adapters", "agent"].flatMap((self) =>
     })),
 );
 
+// The webview may import core/browser only.
+const webviewZones = [
+  "./packages/core/src/server",
+  "./packages/store",
+  "./packages/adapters",
+  "./packages/agent",
+].map((from) => ({ target: "./apps/desktop/src/webview", from }));
+
 export default tseslint.config(
-  { ignores: ["node_modules"] },
+  { ignores: ["node_modules", "apps/desktop/dist"] },
   js.configs.recommended,
   tseslint.configs.recommended,
   {
@@ -24,6 +32,11 @@ export default tseslint.config(
     settings: {
       "import/resolver": { typescript: { project: "./tsconfig.json" } },
     },
-    rules: { "import/no-restricted-paths": ["error", { zones }] },
+    rules: {
+      "import/no-restricted-paths": [
+        "error",
+        { zones: [...zones, ...webviewZones] },
+      ],
+    },
   },
 );
