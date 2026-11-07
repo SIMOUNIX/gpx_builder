@@ -6,6 +6,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ChatInput } from "@/components/chat-input";
 import { MapView } from "@/components/map-view";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   SidebarInset,
@@ -22,7 +23,7 @@ export function TripView() {
   const tripId = TripId.parse(route.useParams().tripId);
   const qc = useQueryClient();
   const { mapExpanded, setMapExpanded } = useUiStore();
-  const { data: trip } = useQuery({
+  const { data: trip, isPending } = useQuery({
     queryKey: ["trip", tripId],
     queryFn: () => api.getTrip(tripId),
   });
@@ -30,10 +31,12 @@ export function TripView() {
     queryKey: ["chat", tripId],
     queryFn: () => api.getChat(tripId),
   });
-  const { data: gpx = [] } = useQuery({
+  const { data: gpx } = useQuery({
     queryKey: ["route", tripId],
     queryFn: () => api.getRoute(tripId),
   });
+  // Render nothing while loading: "not found" must not flash before the data arrives.
+  if (isPending) return null;
   if (!trip) return <p className="p-4">Trip not found.</p>;
   const { days, km, gainM, lossM } = tripTotals(trip);
   const send = async (text: string) => {
@@ -50,7 +53,7 @@ export function TripView() {
         </header>
         <div className="relative min-h-0 flex-1">
           <ScrollArea className="h-full">
-            <div className="mx-auto flex max-w-3xl flex-col gap-4 p-6">
+            <div className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
               {chat.map((m) => (
                 <div
                   key={m.id}
@@ -82,9 +85,9 @@ export function TripView() {
             </div>
           )}
         </div>
-        <div className="mx-auto w-full max-w-3xl space-y-3 p-4">
-          <div className="flex items-stretch justify-between gap-3">
-            <dl className="text-muted-foreground grid flex-1 grid-cols-4 gap-2 text-sm">
+        <div className="mx-auto w-full max-w-4xl space-y-3 p-4">
+          <Card className="flex-row items-center justify-between gap-4 p-4">
+            <dl className="text-muted-foreground grid flex-1 grid-cols-2 gap-4 text-sm sm:grid-cols-4">
               {[
                 ["Days", days],
                 ["Distance", `${km} km`],
@@ -99,12 +102,12 @@ export function TripView() {
             </dl>
             <button
               onClick={() => setMapExpanded(true)}
-              className="h-24 w-40 shrink-0 overflow-hidden rounded-lg border"
+              className="h-28 w-48 shrink-0 overflow-hidden rounded-md border"
               aria-label="Expand map"
             >
               <MapView route={gpx} className="size-full" />
             </button>
-          </div>
+          </Card>
           <ChatInput onSend={send} placeholder="Ask for a change…" />
         </div>
       </SidebarInset>

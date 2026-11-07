@@ -18,9 +18,9 @@ export function Home() {
     await navigate({ to: "/trips/$tripId", params: { tripId: trip.tripId } });
   };
   return (
-    <div className="mx-auto flex min-h-screen max-w-4xl flex-col justify-center gap-10 p-8">
+    <div className="mx-auto flex min-h-screen max-w-5xl flex-col justify-center gap-12 p-10">
       <div className="space-y-4">
-        <h1 className="text-center text-2xl font-semibold">
+        <h1 className="text-center text-3xl font-semibold tracking-tight">
           Where do you want to go?
         </h1>
         <ChatInput onSend={start} placeholder="Describe your next trip…" />
