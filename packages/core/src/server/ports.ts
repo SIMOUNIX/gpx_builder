@@ -50,6 +50,10 @@ export interface RoutingPort {
 export interface TripStorePort {
   create(trip: Trip): Result<void, StoreError>;
   load(tripId: TripId): Result<Trip, StoreError>;
+  /** Every readable trip, most recently updated first. Unreadable folders are skipped. */
+  list(): Result<{ id: TripId; name: string; updatedAt: string }[], StoreError>;
+  /** Removes the trip folder and everything in it. `not-found` when there is no such trip. */
+  delete(tripId: TripId): Result<void, StoreError>;
   /** Stamps `updatedAt` and keeps the previous version as trip.prev.json. */
   save(trip: Trip): Result<void, StoreError>;
   writeRoute(tripId: TripId, line: Position3[]): Result<RouteId, StoreError>;

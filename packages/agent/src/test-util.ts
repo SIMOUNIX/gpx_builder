@@ -21,6 +21,9 @@ export function memoryTrips(initial: Trip) {
   const derived: Record<string, string> = {};
   const store: TripStorePort = {
     create: () => ok(undefined),
+    delete: () => ok(undefined),
+    list: () =>
+      ok([{ id: trip.tripId, name: trip.name, updatedAt: trip.updatedAt }]),
     load: () => ok(trip),
     save: (t) => {
       trip = t;
@@ -106,3 +109,82 @@ export const run = async <T>(
     input as never,
     { toolCallId: "t1", messages: [] } as never,
   )) as T;
+
+// ---- chat store and scripted model, for planner tests ----
+
+import { MockLanguageModelV4 } from "ai/test";
+import {
+  type ChatId,
+  type ChatMessage,
+  type ChatStorePort,
+} from "@gpx-builder/core/server";
+
+export function memoryChats(): ChatStorePort & { all: () => ChatMessage[] } {
+  const messages: ChatMessage[] = [];
+  return {
+    append: (_id: ChatId, m) => {
+      messages.push(structuredClone(m));
+      return ok(undefined);
+    },
+    load: () =>
+      messages.length === 0
+        ? err({ kind: "not-found", message: "no chat" })
+        : ok(structuredClone(messages)),
+    all: () => messages,
+  };
+}
+
+/** What the fake model says in one step: text, tool calls, or both. */
+export type Script = {
+  text?: string;
+  calls?: { name: string; input: unknown }[];
+  fail?: string;
+};
+
+const usage = {
+  inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+  outputTokens: { total: 1, text: 1, reasoning: 0 },
+};
+
+/** A model that follows a script, one entry per step, and remembers what it was sent. */
+export function scriptedModel(script: Script[]) {
+  let i = 0;
+  return new MockLanguageModelV4({
+    doStream: async () => {
+      const step = script[i++] ?? { text: "(script ended)" };
+      if (step.fail) throw new Error(step.fail);
+      const parts: unknown[] = [{ type: "stream-start", warnings: [] }];
+      if (step.text !== undefined) {
+        parts.push(
+          { type: "text-start", id: "t" },
+          { type: "text-delta", id: "t", delta: step.text },
+          { type: "text-end", id: "t" },
+        );
+      }
+      (step.calls ?? []).forEach((c, n) =>
+        parts.push({
+          type: "tool-call",
+          toolCallId: `call_${i}_${n}`,
+          toolName: c.name,
+          input: JSON.stringify(c.input),
+        }),
+      );
+      parts.push({
+        type: "finish",
+        usage,
+        finishReason: {
+          unified: step.calls?.length ? "tool-calls" : "stop",
+          raw: undefined,
+        },
+      });
+      return {
+        stream: new ReadableStream({
+          start(c) {
+            for (const p of parts) c.enqueue(p as never);
+            c.close();
+          },
+        }),
+      };
+    },
+  });
+}

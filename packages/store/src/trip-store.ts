@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import {
@@ -185,6 +191,40 @@ export function createTripStore(opts: {
       }
       const read = readTripFile(found.value);
       return read.ok ? ok(read.value.trip) : read;
+    },
+
+    delete(tripId) {
+      const found = find(tripsDir, tripId);
+      if (!found.ok) return found;
+      try {
+        rmSync(found.value, { recursive: true });
+        return ok(undefined);
+      } catch (e) {
+        return err(ioError(e, found.value));
+      }
+    },
+
+    list() {
+      if (!existsSync(tripsDir)) return ok([]);
+      try {
+        const rows = readdirSync(tripsDir, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .flatMap((d) => {
+            const read = readTripFile(join(tripsDir, d.name));
+            return read.ok
+              ? [
+                  {
+                    id: read.value.trip.tripId,
+                    name: read.value.trip.name,
+                    updatedAt: read.value.trip.updatedAt,
+                  },
+                ]
+              : []; // an unreadable folder must not hide the others
+          });
+        return ok(rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+      } catch (e) {
+        return err(ioError(e, tripsDir));
+      }
     },
 
     save(trip) {

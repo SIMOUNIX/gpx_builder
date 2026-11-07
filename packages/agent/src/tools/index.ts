@@ -13,5 +13,5 @@ export const createTools = (deps: AgentDeps) => ({
   submit_brief: submitBrief(deps),
   submit_itinerary: submitItinerary(deps),
   route: route(deps),
-  export_trip: exportTrip(deps),
+  export_trip: exportTrip,
 });
