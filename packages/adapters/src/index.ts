@@ -8,4 +8,9 @@ export {
   type KeychainBackend,
   type WritableSecrets,
 } from "./keychain-secrets";
-export { createSecrets, type AppSecrets, type KeychainStatus } from "./secrets";
+export {
+  createSecrets,
+  type AppSecrets,
+  type KeychainStatus,
+  type SecretSource,
+} from "./secrets";

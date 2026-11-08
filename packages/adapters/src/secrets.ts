@@ -9,7 +9,13 @@ import {
 
 export type KeychainStatus = { available: boolean; reason?: string };
 
-export type AppSecrets = WritableSecrets & { keychainStatus(): KeychainStatus };
+export type SecretSource = "env" | "key file" | "keychain";
+
+export type AppSecrets = WritableSecrets & {
+  keychainStatus(): KeychainStatus;
+  /** Where `get(name)` finds the secret; undefined when it is nowhere. Never returns the value. */
+  sourceOf(name: string): Promise<SecretSource | undefined>;
+};
 
 /**
  * The app's secrets: env var first (explicit override, keeps a dev `.env`
@@ -46,14 +52,27 @@ export const createSecrets = ({
     }
   };
 
+  const resolve = async (
+    name: string,
+  ): Promise<{ value: string; source: SecretSource } | undefined> => {
+    const sources: [SecretSource, () => Promise<string | undefined>][] = [
+      ["env", () => fromEnv.get(name)],
+      ["key file", async () => file?.get(name)],
+      ["keychain", async () => viaKeychain(() => keychain.get(name))],
+    ];
+    for (const [source, read] of sources) {
+      const value = await read();
+      if (value) return { value, source };
+    }
+  };
+
   return {
     keychainStatus: () => status,
     async get(name) {
-      return (
-        (await fromEnv.get(name)) ??
-        (await file?.get(name)) ??
-        (await viaKeychain(() => keychain.get(name)))
-      );
+      return (await resolve(name))?.value;
+    },
+    async sourceOf(name) {
+      return (await resolve(name))?.source;
     },
     async set(name, value) {
       if (file) return file.set(name, value);

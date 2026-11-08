@@ -101,6 +101,10 @@ test("chain: env wins over key file, key file over keychain", async () => {
   expect(await secrets.get("A")).toBe("env");
   expect(await secrets.get("B")).toBe("file");
   expect(await secrets.get("C")).toBe("keychain");
+  expect(await secrets.sourceOf("A")).toBe("env");
+  expect(await secrets.sourceOf("B")).toBe("key file");
+  expect(await secrets.sourceOf("C")).toBe("keychain");
+  expect(await secrets.sourceOf("D")).toBeUndefined();
 });
 
 test("chain: a failing keychain is skipped and reported once", async () => {
