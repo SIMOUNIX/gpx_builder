@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import {
-  createEnvSecrets,
+  createSecrets,
   createOrsRouter,
   createPhotonGeocoder,
 } from "@gpx-builder/adapters";
@@ -138,7 +138,7 @@ async function main() {
   const trips = createTripStore({ tripsDir: dirs.tripsDir });
   if (args.cmd === "trips") return printTrips(trips);
 
-  const secrets = createEnvSecrets();
+  const secrets = createSecrets();
   const orsKey = await secrets.get("ORS_API_KEY");
   const anthropicKey = await secrets.get("ANTHROPIC_API_KEY");
   if (!orsKey || !anthropicKey) {
@@ -149,6 +149,12 @@ async function main() {
     fail(`missing ${missing.join(" and ")} (set in .env)`);
     process.exit(1);
   }
+  const sources = await Promise.all(
+    ["ORS_API_KEY", "ANTHROPIC_API_KEY"].map(
+      async (n) => `${n} ← ${await secrets.sourceOf(n)}`,
+    ),
+  );
+  console.log(dim(`secrets: ${sources.join(", ")}`));
   const model = await createStrongModel(secrets);
   if (!model.ok) {
     fail(`${sanitize(model.error.message)}`);
