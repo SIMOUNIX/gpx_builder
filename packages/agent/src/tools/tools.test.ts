@@ -291,3 +291,56 @@ test("ask_user is client-side: no execute, so the loop stops", () => {
   const { tools } = setup();
   expect(tools.ask_user.execute).toBeUndefined();
 });
+
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+test("parallel route calls on different stages both keep their routeId", async () => {
+  const slow: RoutingPort = {
+    capabilities: { maxWaypoints: 50, profiles: ["foot-hiking"] },
+    async route({ waypoints }) {
+      await tick();
+      return {
+        ok: true as const,
+        value: { ...routed, line: [...routed.line, [waypoints.length, 0, 0]] },
+      };
+    },
+  };
+  const s = setup(slow);
+  await run(s.tools.find_place, { query: "x" });
+  await run(s.tools.submit_brief, { brief: fullBrief });
+  const made = await run<{ stages: { stageId: string }[] }>(
+    s.tools.submit_itinerary,
+    {
+      stages: [
+        { from: gare, to: village },
+        { from: village, to: gare },
+      ],
+    },
+  );
+  await Promise.all(
+    made.stages.map((st) => run(s.tools.route, { stageId: st.stageId })),
+  );
+  expect(s.trips.trip().stages.map((st) => !!st.routeId)).toEqual([true, true]);
+});
+
+test("parallel find_place calls keep every candidate in the registry", async () => {
+  const trips = memoryTrips(emptyTrip());
+  const geocode = {
+    async search({ query }: { query: string }) {
+      await tick();
+      return {
+        ok: true as const,
+        value: [query === "a" ? candidates[0]! : candidates[1]!],
+      };
+    },
+  };
+  const tools = createTools(depsFor(trips, geocode, fakeRouting(routed)));
+  await Promise.all([
+    run(tools.find_place, { query: "a" }),
+    run(tools.find_place, { query: "b" }),
+  ]);
+  expect(Object.keys(trips.trip().registry.places).sort()).toEqual([
+    gare,
+    village,
+  ]);
+});

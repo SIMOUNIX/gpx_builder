@@ -30,14 +30,19 @@ export const findPlace = (deps: AgentDeps) =>
       const found = await deps.geocode.search({ query, nearHint: near });
       if (!found.ok) return failAdapter(found.error);
 
+      // Parallel tool calls in one step share the trip file: reload after the
+      // await and save with no await in between, or the last stale save wins.
+      const fresh = deps.trips.load(deps.tripId);
+      if (!fresh.ok) return failStore(fresh.error);
+
       // Remember every id the model is shown, so it still resolves in later turns.
-      const places = { ...trip.registry.places };
+      const places = { ...fresh.value.registry.places };
       for (const c of found.value) {
         places[c.placeId] = { label: c.label, kind: c.kind, lngLat: c.lngLat };
       }
       const saved = deps.trips.save({
-        ...trip,
-        registry: { ...trip.registry, places },
+        ...fresh.value,
+        registry: { ...fresh.value.registry, places },
       });
       if (!saved.ok) return failStore(saved.error);
 

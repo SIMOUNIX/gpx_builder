@@ -124,7 +124,12 @@ export async function runTurn(
         const written = exportTrip(deps.trips, deps.tripId);
         answer = written.ok
           ? { ok: true, files: written.value }
-          : failStore(written.error);
+          : {
+              ...failStore(written.error),
+              ...(written.error.stageIds && {
+                unrouted: written.error.stageIds,
+              }),
+            };
       }
     }
     append({

@@ -350,6 +350,8 @@ M1 implements `ask_user`, `find_place`, `submit_brief`, `submit_itinerary`, `rou
 M1 tool details (as built):
 
 - Tools are bound to one trip when created (`createTools(deps)`), so the model never passes a trip id. `export_trip` and the others take no `tripId`.
+- Tools reload the trip after every network call and save in the same synchronous block (`route`, `find_place`): the model issues parallel tool calls in one step, and a stale copy saved last would erase the others' writes.
+- `export_trip` refuses while any stage has no `routeId`: nothing is written, the store error `unrouted` carries `stageIds`, and the planner returns `{ ok: false, error, unrouted }` so the model routes them first.
 - `find_place`: `nearHint` is a `placeId` the model already holds; the server turns it into coordinates. Every candidate shown is saved in `trip.registry.places`. Results contain `placeId`, label and kind only.
 - `submit_brief(brief, name?)`: accepts a partial `BriefDraft`, merges it over the stored one (top-level fields), checks every `placeId` is in the registry, optionally sets the trip name, and answers `{ complete, missing }`. A trip starts as "Untitled trip" with an empty brief; the CLI creates the trip and its chat together.
 - `submit_itinerary(stages)`: refused until the brief is complete. Stages are `{ from, to, via?, overnight? }` of `placeId`s; it replaces all stages and waypoints, mints stage and waypoint ids, and shares one waypoint between stages that meet at the same place.
@@ -676,6 +678,8 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 | CLI commands (v1.1)          | `bun cli` new trip; `--trip <id>` resume; `bun cli trips`; `--verbose`; in the REPL `/trips`, `/quit`, `exit`, Ctrl-D                                 | —                                                                                              |
 | Empty trips (v1.1)           | `TripStorePort.delete(tripId)` removes the folder; the CLI deletes a new trip on quit if no message was sent (never a resumed one)                    | Create the trip lazily on the first message                                                    |
 | No `--home` flag (v1.1)      | The start point is given in the conversation and stored in `brief.travel.from`                                                                        | A `--home` flag or a global home place                                                         |
+| Parallel tool writes (v1.1)  | Network call first, then load-modify-save synchronously                                                                                               | Disable parallel tool calls; per-trip lock                                                     |
+| Strict export (v1.1)         | Export refuses unrouted stages: `StoreError` kind `unrouted` + `stageIds`, planner returns `unrouted` to the model                                    | Export routed stages only; export with a warning                                               |
 
 **Open questions:**
 

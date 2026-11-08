@@ -88,8 +88,21 @@ test("loads each route once, builds the files, writes them, returns the paths", 
   ]);
 });
 
-test("a trip with no routed stage writes nothing and returns no paths", () => {
-  const trip = mkTrip([stage(1)]);
+test("any unrouted stage refuses the export, names the stages and writes nothing", () => {
+  const trip = mkTrip([stage(1, r1), stage(2), stage(3)]);
+  const { store, calls } = fakeStore(trip);
+  const r = exportTrip(store, trip.tripId);
+  expect(!r.ok && r.error.kind).toBe("unrouted");
+  expect(!r.ok && r.error.stageIds).toEqual([
+    trip.stages[1]!.id,
+    trip.stages[2]!.id,
+  ]);
+  expect(!r.ok && r.error.message).toContain(trip.stages[1]!.id);
+  expect(calls.written).toEqual([]);
+});
+
+test("a trip with no stages writes nothing and returns no paths", () => {
+  const trip = mkTrip([]);
   const { store, calls } = fakeStore(trip);
   expect(exportTrip(store, trip.tripId)).toEqual({ ok: true, value: [] });
   expect(calls.written).toEqual([]);
