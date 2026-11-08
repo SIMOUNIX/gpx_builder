@@ -96,26 +96,20 @@ const breakLine = () => {
   process.stdout.write("\n");
   midLine = false;
 };
-const FRAMES = ["⛰", "🏔", "🗻"];
+const LOGO = "⛰"; // one fixed glyph: ⛰ 🏔 🗻 differ in width and shifted the line
 
 function createSpinner() {
-  let timer: ReturnType<typeof setInterval> | undefined;
-  let word = statusWord();
-  let n = 0;
-  const draw = () =>
-    process.stdout.write(`${CLEAR}${FRAMES[n++ % 3]} ${dim(word)}`);
+  let active = false;
   return {
     start(tool?: string) {
       if (!tty) return;
       breakLine();
-      word = statusWord(tool);
-      if (!timer) timer = setInterval(draw, 150);
-      draw();
+      active = true;
+      process.stdout.write(`${CLEAR}${LOGO} ${dim(statusWord(tool))}`);
     },
     stop() {
-      if (!timer) return;
-      clearInterval(timer);
-      timer = undefined;
+      if (!active) return;
+      active = false;
       process.stdout.write(CLEAR);
     },
   };
