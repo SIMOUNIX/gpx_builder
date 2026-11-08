@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   PlaceId,
+  StageId,
   mintChatId,
   type GeocodeCandidate,
 } from "@gpx-builder/core/server";
@@ -294,6 +295,23 @@ test("export_trip waits for a y/N; yes writes the files and the turn continues",
   expect(JSON.stringify(stored)).toContain("day-1.gpx");
   expect(seen.join("")).toBe("Files written."); // the model reported the outcome
   expect(JSON.stringify(model.doStreamCalls[1]!.prompt)).toContain("day-1.gpx");
+});
+
+test("export_trip with an unrouted stage writes nothing and tells the model which", async () => {
+  const { trips, deps, model } = await exportSetup();
+  const t = trips.trip();
+  const extra = {
+    ...t.stages[0]!,
+    id: StageId.parse("stage_9_aaaaaaaa"),
+    routeId: undefined,
+  };
+  trips.store.save({ ...t, stages: [...t.stages, extra] });
+  await runTurn(deps, "export it");
+  await runTurn(deps, "y");
+  expect(Object.keys(trips.derived)).toEqual([]);
+  const sent = JSON.stringify(model.doStreamCalls[1]!.prompt);
+  expect(sent).toContain("unrouted");
+  expect(sent).toContain("stage_9_aaaaaaaa");
 });
 
 test("anything but y/yes declines the export and writes nothing", async () => {

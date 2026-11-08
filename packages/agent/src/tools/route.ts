@@ -38,10 +38,25 @@ export const route = (deps: AgentDeps) =>
       const routed = await deps.routing.route({ waypoints, profile: PROFILE });
       if (!routed.ok) return failAdapter(routed.error);
 
+      // Parallel tool calls in one step share the trip file: reload after the
+      // await and save with no await in between, or the last stale save wins.
+      const fresh = deps.trips.load(deps.tripId);
+      if (!fresh.ok) return failStore(fresh.error);
+      if (!fresh.value.stages.some((s) => s.id === stageId)) {
+        return failIssues([
+          { path: "stageId", message: `unknown stage ${stageId}` },
+        ]);
+      }
+
       const written = deps.trips.writeRoute(deps.tripId, routed.value.line);
       if (!written.ok) return failStore(written.error);
 
-      const next = applyRoutedStage(trip, stageId, routed.value, written.value);
+      const next = applyRoutedStage(
+        fresh.value,
+        stageId,
+        routed.value,
+        written.value,
+      );
       const saved = deps.trips.save(next);
       if (!saved.ok) return failStore(saved.error);
 

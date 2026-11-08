@@ -10,12 +10,22 @@ export type AdapterError = {
   retryAfterSec?: number;
 };
 
-/** A local file store failed. `corrupt` = unparseable, `invalid` = fails the schema. */
+/**
+ * A local file store failed. `corrupt` = unparseable, `invalid` = fails the schema,
+ * `unrouted` = an export was refused because `stageIds` have no route yet.
+ */
 export type StoreError = {
   kind:
-    "not-found" | "invalid" | "corrupt" | "newer-version" | "duplicate" | "io";
+    | "not-found"
+    | "invalid"
+    | "corrupt"
+    | "newer-version"
+    | "duplicate"
+    | "io"
+    | "unrouted";
   message: string;
   path?: string;
+  stageIds?: string[];
 };
 
 export type Result<T, E = AdapterError> =
