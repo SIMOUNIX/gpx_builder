@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Plus, Settings } from "lucide-react";
+import { Map, Plus, Settings } from "lucide-react";
+import { useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -8,34 +9,69 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
+  SidebarInput,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { api } from "../api";
+import { timeAgo, tripStatus } from "../trip-stats";
 
 export function AppSidebar({ activeTripId }: { activeTripId: string }) {
   const navigate = useNavigate();
+  const [search, setSearch] = useState("");
   const { data: trips = [] } = useQuery({
     queryKey: ["trips"],
     queryFn: api.listTrips,
   });
+  const shown = trips.filter((t) =>
+    t.name.toLowerCase().includes(search.toLowerCase()),
+  );
   return (
     <Sidebar>
-      <SidebarHeader>
-        <SidebarMenuButton onClick={() => navigate({ to: "/" })}>
-          <Plus /> New chat
-        </SidebarMenuButton>
+      <SidebarHeader className="gap-3">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="caps"
+              onClick={() => navigate({ to: "/" })}
+            >
+              <Map /> Home
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="caps"
+              onClick={() => navigate({ to: "/" })}
+            >
+              <Plus /> New chat
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        <SidebarInput
+          placeholder="Search…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Trips</SidebarGroupLabel>
+          <SidebarGroupLabel className="caps">Trips</SidebarGroupLabel>
           <SidebarMenu>
-            {trips.map((t) => (
+            {shown.map((t) => (
               <SidebarMenuItem key={t.tripId}>
-                <SidebarMenuButton asChild isActive={t.tripId === activeTripId}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={t.tripId === activeTripId}
+                  className="h-auto py-2"
+                >
                   <Link to="/trips/$tripId" params={{ tripId: t.tripId }}>
-                    {t.name}
+                    <div className="min-w-0">
+                      <div className="truncate">{t.name}</div>
+                      <div className="caps text-muted-foreground truncate">
+                        {tripStatus(t)} · {timeAgo(t.updatedAt)}
+                      </div>
+                    </div>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -44,7 +80,7 @@ export function AppSidebar({ activeTripId }: { activeTripId: string }) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <SidebarMenuButton>
+        <SidebarMenuButton className="caps">
           <Settings /> Settings
         </SidebarMenuButton>
       </SidebarFooter>

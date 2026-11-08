@@ -112,17 +112,6 @@ export const mockTrips: Trip[] = [
   ),
 ];
 
-/** Route geometry lives in the trip folder's routes/ (not in Trip); a wavy line stands in for it. */
-export const mockRoute = (trip: Trip): LngLat[] => {
-  const [lng, lat] = Object.values(trip.waypoints)[0]?.lngLat ?? [0, 0];
-  return trip.stages.length === 0
-    ? []
-    : Array.from({ length: 40 }, (_, i) => [
-        lng + i * 0.004 * trip.stages.length,
-        lat + Math.sin(i / 4) * 0.02 + i * 0.001,
-      ]);
-};
-
 export const mockChat = (trip: Trip) => [
   {
     id: "m1",

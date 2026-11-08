@@ -5,7 +5,7 @@ import {
   type Trip,
   type TripId,
 } from "@gpx-builder/core/browser";
-import { mockChat, mockRoute, mockTrips } from "./fixtures/trips";
+import { mockChat, mockTrips } from "./fixtures/trips";
 
 // The only place components get server data from; M2 swaps the bodies for tRPC calls.
 // In-memory so sending a message works in the browser mock.
@@ -28,10 +28,11 @@ export const api = {
   getTrip: async (id: TripId): Promise<Trip | undefined> =>
     trips.find((t) => t.tripId === id),
   getChat: async (id: TripId): Promise<ChatMessage[]> => chats.get(id) ?? [],
-  getRoute: async (id: TripId): Promise<LngLat[]> => {
-    const trip = trips.find((t) => t.tripId === id);
-    return trip ? mockRoute(trip) : [];
-  },
+  // No route geometry in the mock: real trips come with the backend.
+  getRoute: async (): Promise<LngLat[]> => [],
+  /** Every trip's route, for the home map. */
+  getAllRoutes: async (): Promise<{ tripId: TripId; route: LngLat[] }[]> =>
+    trips.map((t) => ({ tripId: t.tripId, route: [] })),
   sendMessage: async (id: TripId, text: string) => {
     chats.set(id, [...(chats.get(id) ?? []), userMessage(text)]);
   },

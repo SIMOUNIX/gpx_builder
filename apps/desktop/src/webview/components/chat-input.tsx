@@ -20,9 +20,7 @@ export function ChatInput({
     setText("");
   };
   return (
-    <div
-      className={`bg-card relative rounded-xl border shadow-sm ${className ?? ""}`}
-    >
+    <div className={`bg-card relative rounded-2xl border ${className ?? ""}`}>
       <Textarea
         value={text}
         placeholder={placeholder}
