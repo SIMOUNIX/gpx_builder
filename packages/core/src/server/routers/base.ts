@@ -10,7 +10,8 @@ export type AppRouterDeps = {
   now?: () => Date;
 };
 
-export const t = initTRPC.create();
+// isDev: false keeps stack traces (with local paths) out of error responses.
+export const t = initTRPC.create({ isDev: false });
 export const tripInput = z.object({ tripId: TripId });
 
 /** A store failure as a tRPC error the client can tell apart: missing vs broken. */

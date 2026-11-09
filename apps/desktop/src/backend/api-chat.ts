@@ -7,7 +7,7 @@ import type { ServerDeps } from "./server";
 const deny = (status: number, why: string) =>
   Response.json({ error: why }, { status });
 
-const ChatBody = z.object({ tripId: TripId, text: z.string().min(1) });
+const ChatBody = z.object({ tripId: TripId, text: z.string().trim().min(1) });
 
 /** `/api/chat`: runs one agent turn per request and streams it. The LLM side of the server. */
 export function createChatHandler(deps: ServerDeps) {
@@ -16,7 +16,11 @@ export function createChatHandler(deps: ServerDeps) {
   /** Streams one agent turn as AI SDK UIMessage SSE. */
   function turn(body: z.infer<typeof ChatBody>): Response {
     const { tripId, text } = body;
-    if (!deps.trips.load(tripId).ok) return deny(404, "no such trip");
+    const trip = deps.trips.load(tripId);
+    if (!trip.ok)
+      return trip.error.kind === "not-found"
+        ? deny(404, "no such trip")
+        : deny(500, trip.error.message); // corrupt, newer-version...: not "missing"
     // Two turns on one transcript would interleave their messages.
     if (running.has(tripId)) return deny(409, "a turn is already running");
     running.add(tripId);
@@ -30,8 +34,14 @@ export function createChatHandler(deps: ServerDeps) {
           if (textId) writer.write({ type: "text-end", id: textId });
           textId = undefined;
         };
-        writer.write({ type: "start" });
+        // Bun closes a connection that is silent for 10 s, and a model call or
+        // a routing retry can be quiet for longer: a transient ping keeps it open.
+        const keepAlive = setInterval(
+          () => writer.write({ type: "data-ping", data: {}, transient: true }),
+          5_000,
+        );
         try {
+          writer.write({ type: "start" });
           // ponytail: no abort on client disconnect; the turn finishes and persists.
           const r = await runTurn(
             {
@@ -79,6 +89,7 @@ export function createChatHandler(deps: ServerDeps) {
             writer.write({ type: "data-pending", data: r.value.pending });
           writer.write({ type: "finish" });
         } finally {
+          clearInterval(keepAlive);
           running.delete(tripId);
         }
       },

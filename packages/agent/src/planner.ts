@@ -255,6 +255,9 @@ export async function runTurn(
     const result = await agent.stream({
       // The whole stored transcript, converted to the SDK's message format.
       messages: toModelMessages(stored.value),
+      // A stalled provider or tool must not hold the turn (and the host's
+      // per-trip lock) forever. On expiry the stream ends with an `abort` part.
+      timeout: { totalMs: 300_000, chunkMs: 60_000, toolMs: 90_000 },
       // Called when a step is complete (model answered AND its tools ran).
       // We save it now, not at the end of the turn: a crash keeps the finished
       // steps, and a pending `ask_user` is on disk before the host shows it.
@@ -284,6 +287,8 @@ export async function runTurn(
       else if (part.type === "tool-error")
         hooks.onToolResult?.(part.toolName, false, part.toolCallId);
       else if (part.type === "error") modelError = part.error;
+      else if (part.type === "abort")
+        modelError = new Error("the model or a tool timed out");
     }
     if (modelError) throw modelError;
     await result.steps; // waits for the loop to be fully finished

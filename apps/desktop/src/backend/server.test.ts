@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createTRPCClient, httpLink } from "@trpc/client";
@@ -8,7 +8,7 @@ import { chatIdOf, type AppRouter } from "@gpx-builder/core/server";
 import { createChatStore, createTripStore } from "@gpx-builder/store";
 import { startServer } from "./server";
 
-const TOKEN = "test-token";
+const TOKEN = "t".repeat(32);
 const ORIGIN = "http://localhost:5173";
 const dir = mkdtempSync(join(tmpdir(), "gpx-server-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -252,4 +252,34 @@ test("/api/chat reports a model failure as an error chunk", async () => {
   expect(c.find((x) => x.type === "error")).toMatchObject({
     errorText: expect.stringContaining("529 overloaded"),
   });
+});
+
+test("a weak token is refused at startup", () => {
+  expect(() =>
+    startServer({
+      token: "short",
+      allowedOrigins: [ORIGIN],
+      deps: {} as never,
+    }),
+  ).toThrow("token");
+});
+
+test("errors carry no stack trace", async () => {
+  const missing = "trip_00000000-0000-4000-8000-000000000000";
+  const input = encodeURIComponent(JSON.stringify({ tripId: missing }));
+  const res = await call(`/api/file/trips.get?input=${input}`);
+  expect(res.status).toBe(404);
+  expect(await res.text()).not.toContain("stack");
+});
+
+test("/api/chat rejects whitespace-only text and tells a damaged trip from a missing one", async () => {
+  const { tripId } = await trpc.trips.create.mutate();
+  expect((await post("/api/chat", { tripId, text: "  \n " })).status).toBe(400);
+
+  // Damage trip.json on disk: not "no such trip", a real server error.
+  const folder = readdirSync(join(dir, "trips")).find((f) =>
+    f.endsWith(tripId.slice(5, 13)),
+  )!;
+  writeFileSync(join(dir, "trips", folder, "trip.json"), "{ nope");
+  expect((await post("/api/chat", { tripId, text: "hi" })).status).toBe(500);
 });

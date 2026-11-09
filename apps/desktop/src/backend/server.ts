@@ -44,6 +44,7 @@ export function startServer({
   deps,
   port = 0,
 }: ServerOptions) {
+  if (token.length < 32) throw new Error("token must be at least 32 chars");
   const router = createAppRouter(deps);
   const allowed = new Set(allowedOrigins);
   const chat = createChatHandler(deps);
@@ -51,6 +52,9 @@ export function startServer({
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port,
+    // No Bun error page (it shows source and paths); a throw becomes a bare 500.
+    development: false,
+    error: () => deny(500, "internal error"),
     maxRequestBodySize: 64 * 1024,
     async fetch(req, srv) {
       // Host: blocks DNS rebinding.

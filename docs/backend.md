@@ -113,6 +113,14 @@ POST {tripId, text: "2"}
 
 Nothing is held in memory between the two requests. The file on disk is the state.
 
+## Failure handling
+
+- **Stuck turns:** `runTurn` gives the model stream a total limit of 5 min, 60 s without a chunk, and 90 s per tool. On expiry the turn ends with an error chunk and the per-trip lock is released.
+- **Quiet streams:** Bun closes a connection silent for 10 s, so `/api/chat` sends a transient `data-ping` every 5 s.
+- **Errors:** tRPC errors carry no stack trace (`isDev: false`), and Bun's error page is off (`development: false`).
+- **Chat input:** text is trimmed and must not be empty. A trip whose `trip.json` is damaged answers 500 with the store message, not 404.
+- **Startup:** `startServer` refuses a token shorter than 32 characters, and `serve.ts` takes the single-instance lock, so two servers never write the same stores.
+
 ## Testing and running
 
 ```sh
