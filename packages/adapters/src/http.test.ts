@@ -75,3 +75,11 @@ test("a non-JSON success is unavailable", async () => {
   const r = await requestJson("https://x.test", {}, { fetch: f.fn });
   expect(r).toMatchObject({ ok: false, error: { kind: "unavailable" } });
 });
+
+test("the default sleep really waits before a retry", async () => {
+  const f = fakeFetch(json({}, 503), json({ ok: 1 }));
+  const t = Date.now();
+  const r = await requestJson("https://x.test", {}, { fetch: f.fn });
+  expect(r.ok).toBe(true);
+  expect(Date.now() - t).toBeGreaterThanOrEqual(450);
+});

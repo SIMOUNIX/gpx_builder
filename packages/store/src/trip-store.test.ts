@@ -229,3 +229,38 @@ test("routes: missing route, too-short line", () => {
   expect(kind(store().readRoute(t.tripId, id))).toBe("not-found");
   expect(kind(store().writeRoute(t.tripId, [line[0]!]))).toBe("invalid");
 });
+
+test("a missing trips folder: nothing to list, nothing to find", () => {
+  const s = createTripStore({ tripsDir: join(dir, "nope") });
+  expect(must(s.list())).toEqual([]);
+  expect(kind(s.load(mintTripId()))).toBe("not-found");
+  expect(kind(s.delete(mintTripId()))).toBe("not-found");
+});
+
+test("a trip folder without trip.json is an io error", () => {
+  const t = mk();
+  must(store().create(t));
+  rmSync(join(folder(), "trip.json"));
+  expect(store().load(t.tripId).ok).toBe(false);
+});
+
+test("routes: bad id and an unreadable route file", () => {
+  const t = mk();
+  must(store().create(t));
+  expect(kind(store().readRoute(t.tripId, "nope" as never))).toBe("invalid");
+  const id = must(store().writeRoute(t.tripId, line));
+  const file = join(folder(), "routes", `${id}.geojson`);
+  rmSync(file);
+  mkdirSync(file); // a directory where the file should be: EISDIR
+  expect(store().readRoute(t.tripId, id).ok).toBe(false);
+  expect(store().writeRoute(t.tripId, line).ok).toBe(false);
+});
+
+test("routes: a file that matches its id but is not a route", () => {
+  const t = mk();
+  must(store().create(t));
+  const id = must(store().writeRoute(t.tripId, line));
+  const file = join(folder(), "routes", `${id}.geojson`);
+  writeFileSync(file, "not json");
+  expect(kind(store().readRoute(t.tripId, id))).toBe("corrupt");
+});

@@ -344,3 +344,26 @@ test("parallel find_place calls keep every candidate in the registry", async () 
     village,
   ]);
 });
+
+test("route reports a stage whose waypoint is missing from the trip", async () => {
+  const { tools, trips, stageId } = await planned();
+  const t = trips.trip();
+  const stage = t.stages[0]!;
+  delete t.waypoints[stage.from];
+  const out = await run<Failure>(tools.route, { stageId });
+  expect(out.error).toContain("waypoint missing");
+});
+
+test("route reports a stage deleted while the router was busy", async () => {
+  const s = await planned();
+  const racing: RoutingPort = {
+    capabilities: { maxWaypoints: 50, profiles: ["foot-hiking"] },
+    async route() {
+      s.trips.store.save({ ...s.trips.trip(), stages: [] });
+      return { ok: true as const, value: routed };
+    },
+  };
+  const tools = createTools(depsFor(s.trips, s.geocode, racing));
+  const out = await run<Failure>(tools.route, { stageId: s.stageId });
+  expect(out.issues?.[0]?.path).toBe("stageId");
+});

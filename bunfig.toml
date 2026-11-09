@@ -1,0 +1,3 @@
+[test]
+# Bun applies this floor to EACH file, not the total. CI fails if any file is below it.
+coverageThreshold = { lines = 0.9, functions = 0.9 }

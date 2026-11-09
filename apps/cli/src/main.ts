@@ -2,6 +2,7 @@ import { createInterface } from "node:readline/promises";
 import {
   createSecrets,
   createOrsRouter,
+  type AppSecrets,
   createPhotonGeocoder,
 } from "@gpx-builder/adapters";
 import {
@@ -126,8 +127,24 @@ function printTrips(trips: TripStorePort) {
   );
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
+/** What `main` calls out to; tests swap these so no key, network or model is needed. */
+export type Collaborators = {
+  secrets: AppSecrets;
+  createStrongModel: typeof createStrongModel;
+  pendingQuestion: typeof pendingQuestion;
+  runTurn: typeof runTurn;
+};
+
+export async function main(
+  argv = process.argv.slice(2),
+  c: Collaborators = {
+    secrets: createSecrets(),
+    createStrongModel,
+    pendingQuestion,
+    runTurn,
+  },
+) {
+  const args = parseArgs(argv);
   if ("error" in args) {
     fail(`${args.error}`);
     process.exit(1);
@@ -136,7 +153,7 @@ async function main() {
   const trips = createTripStore({ tripsDir: dirs.tripsDir });
   if (args.cmd === "trips") return printTrips(trips);
 
-  const secrets = createSecrets();
+  const { secrets } = c;
   const orsKey = await secrets.get("ORS_API_KEY");
   const anthropicKey = await secrets.get("ANTHROPIC_API_KEY");
   if (!orsKey || !anthropicKey) {
@@ -153,7 +170,7 @@ async function main() {
     ),
   );
   console.log(dim(`secrets: ${sources.join(", ")}`));
-  const model = await createStrongModel(secrets);
+  const model = await c.createStrongModel(secrets);
   if (!model.ok) {
     fail(`${sanitize(model.error.message)}`);
     process.exit(1);
@@ -207,7 +224,7 @@ async function main() {
   };
 
   if (args.trip) {
-    const pending = pendingQuestion(chats, chatId);
+    const pending = c.pendingQuestion(chats, chatId);
     if (pending.ok && pending.value) ask(pending.value);
   }
 
@@ -244,7 +261,7 @@ async function main() {
       sent = true;
       let labeled = false;
       spinner.start();
-      const r = await runTurn(deps, text, {
+      const r = await c.runTurn(deps, text, {
         onText: (d) => {
           spinner.stop();
           const clean = sanitize(d);
