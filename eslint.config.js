@@ -15,13 +15,13 @@ const zones = ["core", "store", "adapters", "agent"].flatMap((self) =>
     })),
 );
 
-// The webview may import core/browser only.
+// The webview may import core/browser, and the AppRouter type from core/server/app-router.
 const webviewZones = [
-  "./packages/core/src/server",
-  "./packages/store",
-  "./packages/adapters",
-  "./packages/agent",
-].map((from) => ({ target: "./apps/desktop/src/webview", from }));
+  { from: "./packages/core/src/server", except: ["./app-router.ts"] },
+  { from: "./packages/store" },
+  { from: "./packages/adapters" },
+  { from: "./packages/agent" },
+].map((z) => ({ target: "./apps/desktop/src/webview", ...z }));
 
 export default tseslint.config(
   { ignores: ["node_modules", "apps/desktop/dist"] },

@@ -8,5 +8,8 @@
     "@ai-sdk/anthropic": "4.0.96",
     "zod": "4.6.7"
   },
-  "exports": "./src/index.ts"
+  "exports": {
+    ".": "./src/index.ts",
+    "./test-util": "./src/test-util.ts"
+  }
 }
