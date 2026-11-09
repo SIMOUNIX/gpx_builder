@@ -596,7 +596,7 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 
 - **v0:**
   - build on the author's own OS;
-  - CI on Linux runs `bun test`, `tsc` and `eslint` only;
+  - CI on Linux (`.github/workflows/bun-checks.yml`, runs on every push to every branch, single `bun-checks` job, required on `main`) runs `prettier --check`, `eslint`, `tsc` and `bun test --coverage`; coverage floor is `coverageThreshold` in `bunfig.toml`;
   - releases unsigned.
 - **(later):**
   - GitHub Actions matrix (macOS, Windows, Ubuntu), since Electrobun builds per host platform;
