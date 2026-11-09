@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "cli": "bun apps/cli/src/main.ts",
+    "serve": "bun apps/desktop/src/backend/serve.ts",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

@@ -5,8 +5,8 @@ import {
   createPhotonGeocoder,
 } from "@gpx-builder/adapters";
 import {
-  ChatId,
   TripId,
+  chatIdOf,
   mintTripId,
   type Trip,
   type TripStorePort,
@@ -23,6 +23,8 @@ import {
   createTripStore,
   resolveDirs,
 } from "@gpx-builder/store";
+
+export { chatIdOf };
 
 export type Args =
   | { cmd: "repl" | "trips"; trip?: string; verbose: boolean }
@@ -43,10 +45,6 @@ export function parseArgs(argv: string[]): Args {
   }
   return { cmd, trip, verbose };
 }
-
-/** The chat of a trip shares its uuid: `trip_<uuid>` ↔ `chat_<uuid>`. */
-export const chatIdOf = (tripId: TripId): ChatId =>
-  ChatId.parse(`chat_${tripId.slice("trip_".length)}`);
 
 /** Drops control characters (ANSI/OSC escapes included) from text the model or a provider wrote; keeps \n and \t. */
 export const sanitize = (s: string): string =>

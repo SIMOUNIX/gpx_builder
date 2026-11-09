@@ -53,6 +53,8 @@ const short = () => crypto.randomUUID().slice(0, 8);
 
 export const mintTripId = () => TripId.parse(`trip_${crypto.randomUUID()}`);
 export const mintChatId = () => ChatId.parse(`chat_${crypto.randomUUID()}`);
+export const chatIdOf = (tripId: TripId): ChatId =>
+  ChatId.parse(`chat_${tripId.slice("trip_".length)}`);
 export const mintStageId = (n: number) =>
   StageId.parse(`stage_${n}_${short()}`);
 export const mintWaypointId = () => WaypointId.parse(`wp_${short()}`);
