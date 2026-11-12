@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { phase, TripId } from "@gpx-builder/core/browser";
 import { X } from "lucide-react";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -36,17 +36,20 @@ export function TripView() {
   const gpx = useMemo(() => stages && stageRoutes(stages), [stages]);
 
   // Home passes the first message in `?first=`: send it once, then clear the param.
-  const sentFirst = useRef(false);
+  // Deferred so React StrictMode's dev-only unmount/remount (which makes useChat abort an
+  // in-flight request) clears the timer instead of killing the request.
   useEffect(() => {
-    if (!first || sentFirst.current) return;
-    sentFirst.current = true;
-    void send(first);
-    void navigate({
-      to: "/trips/$tripId",
-      params: { tripId },
-      search: {},
-      replace: true,
-    });
+    if (!first) return;
+    const t = setTimeout(() => {
+      void send(first);
+      void navigate({
+        to: "/trips/$tripId",
+        params: { tripId },
+        search: {},
+        replace: true,
+      });
+    }, 0);
+    return () => clearTimeout(t);
   }, [first, send, navigate, tripId]);
 
   // Render nothing while loading: "not found" must not flash before the data arrives.

@@ -42,7 +42,11 @@ export function getBackend(): Backend {
     const found = parseDevBackend(location.search, sessionStorage.getItem(KEY));
     if (found) {
       sessionStorage.setItem(KEY, JSON.stringify(found));
-      history.replaceState(null, "", location.pathname + location.hash); // keep the token out of the URL bar
+      // Keep the token out of the URL bar, and leave any other params alone.
+      const url = new URL(location.href);
+      url.searchParams.delete("api");
+      url.searchParams.delete("token");
+      history.replaceState(null, "", url);
       backend = found;
     }
   }

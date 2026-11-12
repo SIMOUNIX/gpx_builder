@@ -1,7 +1,7 @@
 import { useChat } from "@ai-sdk/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DefaultChatTransport } from "ai";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { TripId } from "@gpx-builder/core/browser";
 import { invalidateTrip, trpc } from "../api";
 import { getBackend } from "../backend";
@@ -40,6 +40,12 @@ export function useTripChat(tripId: TripId) {
     },
   });
 
+  // Stable, so effects that send (the `?first=` one) don't re-run on every render.
+  const { sendMessage } = chat;
+  const send = useCallback(
+    (text: string) => sendMessage({ text }),
+    [sendMessage],
+  );
   const busy = chat.status === "submitted" || chat.status === "streaming";
   return {
     lines: [...historyLines(stored), ...liveLines(chat.messages)],
@@ -49,6 +55,6 @@ export function useTripChat(tripId: TripId) {
       : (pendingFromLive(chat.messages) ?? pendingFromChat(stored)),
     busy,
     error: chat.error,
-    send: (text: string) => chat.sendMessage({ text }),
+    send,
   };
 }
