@@ -22,7 +22,7 @@ If the user does not care about travel time or mode, record any mode with a very
   plan: `Current phase: plan the itinerary.
 The brief is complete. Choose the places each day goes between with find_place, then call submit_itinerary once with every stage. Then route each stage.`,
   refine: `Current phase: refine.
-Stages exist. Route the ones that are not routed, report km and ascent per stage against the brief, and propose changes when a limit is exceeded. When the user is happy, tell them in their language which files will be written and call export_trip; the user must approve it.`,
+Stages exist. Route the ones that are not routed, report km and ascent per stage against the brief, and propose changes when a limit is exceeded. When the user is happy or asks to export, tell them in their language which files will be written and call export_trip in the same reply. Calling it shows the user a yes/no prompt, so never ask whether to export yourself, neither in text nor with ask_user.`,
 };
 
 /** The planner's instructions for a phase; the trip digest is appended by the caller. */
