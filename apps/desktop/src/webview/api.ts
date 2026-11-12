@@ -1,56 +1,36 @@
-import {
-  mintTripId,
-  type ChatMessage,
-  type LngLat,
-  type Trip,
-  type TripId,
-} from "@gpx-builder/core/browser";
-import { mockChat, mockTrips } from "./fixtures/trips";
+import { QueryClient } from "@tanstack/react-query";
+import { createTRPCClient, httpBatchLink } from "@trpc/client";
+import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
+import type { TripId } from "@gpx-builder/core/browser";
+import type { AppRouter } from "@gpx-builder/core/server/app-router";
+import { getBackend } from "./backend";
 
-// The only place components get server data from; M2 swaps the bodies for tRPC calls.
-// In-memory so sending a message works in the browser mock.
-const trips = [...mockTrips];
-const chats = new Map(
-  trips.map((t) => [t.tripId, mockChat(t) as ChatMessage[]]),
-);
+// explain: what does not server code in the bundle mean?
+// The only place components get server data from (type-only import: no server code in the bundle).
+const { url, token } = getBackend();
 
-const userMessage = (text: string): ChatMessage => ({
-  id: crypto.randomUUID(),
-  role: "user",
-  createdAt: new Date().toISOString(),
-  parts: [{ type: "text", text }],
+export const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 60_000 } }, // no refetch flash on remount/focus
 });
 
-export const api = {
-  /** Most recent first. */
-  listTrips: async (): Promise<Trip[]> =>
-    [...trips].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-  getTrip: async (id: TripId): Promise<Trip | undefined> =>
-    trips.find((t) => t.tripId === id),
-  getChat: async (id: TripId): Promise<ChatMessage[]> => chats.get(id) ?? [],
-  // No route geometry in the mock: real trips come with the backend.
-  getRoute: async (): Promise<LngLat[]> => [],
-  /** Every trip's route, for the home map. */
-  getAllRoutes: async (): Promise<{ tripId: TripId; route: LngLat[] }[]> =>
-    trips.map((t) => ({ tripId: t.tripId, route: [] })),
-  sendMessage: async (id: TripId, text: string) => {
-    chats.set(id, [...(chats.get(id) ?? []), userMessage(text)]);
-  },
-  createTrip: async (text: string): Promise<Trip> => {
-    const now = new Date().toISOString();
-    const trip: Trip = {
-      v: 1,
-      tripId: mintTripId(),
-      name: text.slice(0, 40),
-      createdAt: now,
-      updatedAt: now,
-      brief: {},
-      stages: [],
-      waypoints: {},
-      registry: { places: {}, pois: {} },
-    };
-    trips.push(trip);
-    chats.set(trip.tripId, [userMessage(text)]);
-    return trip;
-  },
-};
+export const trpc = createTRPCOptionsProxy<AppRouter>({
+  client: createTRPCClient<AppRouter>({
+    links: [
+      httpBatchLink({
+        url: `${url}/api/file`,
+        headers: { authorization: `Bearer ${token}` },
+      }),
+    ],
+  }),
+  queryClient,
+});
+
+// explain: whta is this and why do we need it?
+/** §3 refresh model: after a mutation or a finished chat turn, refetch everything the trip touches. */
+export const invalidateTrip = (qc: QueryClient, tripId: TripId) =>
+  Promise.all([
+    qc.invalidateQueries(trpc.trips.list.queryFilter()),
+    qc.invalidateQueries(trpc.trips.get.queryFilter({ tripId })),
+    qc.invalidateQueries(trpc.trips.route.queryFilter({ tripId })),
+    qc.invalidateQueries(trpc.chats.messages.queryFilter({ tripId })),
+  ]);

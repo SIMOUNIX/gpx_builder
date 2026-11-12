@@ -131,9 +131,9 @@ test("a turn streams text and tool progress, then asks the question", async () =
     expect(text).toBe("plan me a trip");
     hooks?.onText?.("");
     hooks?.onText?.("hello\x1b[31m there");
-    hooks?.onToolCall?.("route", { stageId: "s" });
-    hooks?.onToolResult?.("route", true);
-    hooks?.onToolResult?.("find_place", false);
+    hooks?.onToolCall?.("route", { stageId: "s" }, "c1");
+    hooks?.onToolResult?.("route", true, "c1");
+    hooks?.onToolResult?.("find_place", false, "c2");
     return ok({
       pending: {
         tool: "ask_user",

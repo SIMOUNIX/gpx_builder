@@ -5,9 +5,10 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { queryClient } from "./api";
 import "./index.css";
 import { Home } from "./routes/home";
 import { TripView } from "./routes/trip";
@@ -18,6 +19,10 @@ const routeTree = root.addChildren([
   createRoute({
     getParentRoute: () => root,
     path: "/trips/$tripId",
+    // Home sends the first message along as `?first=`; the trip view sends it once and clears it.
+    validateSearch: (s: Record<string, unknown>) => ({
+      first: typeof s.first === "string" ? s.first : undefined,
+    }),
     component: TripView,
   }),
 ]);
@@ -28,9 +33,6 @@ declare module "@tanstack/react-router" {
   }
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 60_000 } }, // no refetch flash on remount/focus
-});
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>

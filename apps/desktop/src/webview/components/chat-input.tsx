@@ -7,15 +7,17 @@ export function ChatInput({
   onSend,
   placeholder,
   className,
+  disabled,
 }: {
   onSend: (text: string) => void;
   placeholder: string;
   className?: string;
+  disabled?: boolean;
 }) {
   const [text, setText] = useState("");
   const send = () => {
     const t = text.trim();
-    if (!t) return;
+    if (!t || disabled) return;
     onSend(t);
     setText("");
   };
@@ -36,7 +38,7 @@ export function ChatInput({
       <Button
         size="icon"
         className="absolute right-3 bottom-3 rounded-full"
-        disabled={!text.trim()}
+        disabled={disabled || !text.trim()}
         onClick={send}
         aria-label="Send"
       >

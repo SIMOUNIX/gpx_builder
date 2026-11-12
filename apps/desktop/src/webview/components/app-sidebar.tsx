@@ -14,16 +14,13 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { api } from "../api";
+import { trpc } from "../api";
 import { timeAgo, tripStatus } from "../trip-stats";
 
 export function AppSidebar({ activeTripId }: { activeTripId: string }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const { data: trips = [] } = useQuery({
-    queryKey: ["trips"],
-    queryFn: api.listTrips,
-  });
+  const { data: trips = [] } = useQuery(trpc.trips.list.queryOptions());
   const shown = trips.filter((t) =>
     t.name.toLowerCase().includes(search.toLowerCase()),
   );
