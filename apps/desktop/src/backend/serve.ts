@@ -29,5 +29,8 @@ if (import.meta.main) {
     allowedOrigins,
     deps: await compose(),
   });
-  console.log(`listening on ${url}\ntoken ${token}`);
+  // Dev webview link (read once by the webview's dev-only `?api=&token=` handling, then stripped).
+  const open = new URL(allowedOrigins[0] ?? "http://localhost:5173");
+  open.search = new URLSearchParams({ api: url, token }).toString();
+  console.log(`listening on ${url}\nopen ${open}`);
 }

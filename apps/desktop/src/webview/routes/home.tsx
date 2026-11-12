@@ -1,38 +1,52 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Search, Settings } from "lucide-react";
 import { useState } from "react";
 import { ChatInput } from "@/components/chat-input";
+import { stageRoutes } from "@/components/map-geo";
 import { MapView } from "@/components/map-view";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { api } from "../api";
+import { invalidateTrip, trpc } from "../api";
 
 export function Home() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
-  const { data: trips = [] } = useQuery({
-    queryKey: ["trips"],
-    queryFn: api.listTrips,
+  const { data: trips, isPending } = useQuery(trpc.trips.list.queryOptions());
+  // One line per routed stage of every trip. `combine` keeps the result referentially stable
+  // (MapView re-fits the camera when `routes` changes identity); undefined while anything loads.
+  const routes = useQueries({
+    queries: (trips ?? []).map((t) =>
+      trpc.trips.route.queryOptions({ tripId: t.tripId }),
+    ),
+    combine: (qs) =>
+      qs.some((q) => q.isPending)
+        ? undefined
+        : qs.flatMap((q) => stageRoutes(q.data ?? [])),
   });
-  const { data: routes } = useQuery({
-    queryKey: ["routes"],
-    queryFn: api.getAllRoutes,
-  });
+  const create = useMutation(trpc.trips.create.mutationOptions());
   const start = async (text: string) => {
-    const trip = await api.createTrip(text);
-    await qc.invalidateQueries({ queryKey: ["trips"] });
-    await qc.invalidateQueries({ queryKey: ["routes"] });
-    await navigate({ to: "/trips/$tripId", params: { tripId: trip.tripId } });
+    const trip = await create.mutateAsync();
+    await invalidateTrip(qc, trip.tripId);
+    await navigate({
+      to: "/trips/$tripId",
+      params: { tripId: trip.tripId },
+      search: { first: text },
+    });
   };
-  const recent = trips
+  const recent = (trips ?? [])
     .filter((t) => t.name.toLowerCase().includes(search.toLowerCase()))
     .slice(0, 6);
   return (
     <div className="relative h-screen">
       <MapView
-        routes={routes?.map((r) => ({ id: r.tripId, points: r.route }))}
+        routes={isPending ? undefined : routes}
         className="absolute inset-0"
       />
       <div className="absolute inset-x-0 top-0 flex items-center gap-2 p-4">

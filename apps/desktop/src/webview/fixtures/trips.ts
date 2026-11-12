@@ -1,6 +1,6 @@
 import { Trip, type LngLat } from "@gpx-builder/core/browser";
 
-// Hand-written mocks until the M2 backend exists. Trips are parsed so they can't drift from the contract.
+// Test data only (the app talks to the backend). Trips are parsed so they can't drift from the contract.
 const hex = (n: number, len: number) => n.toString(16).padStart(len, "0");
 
 function makeTrip(

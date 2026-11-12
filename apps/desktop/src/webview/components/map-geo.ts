@@ -1,9 +1,18 @@
-import type { LngLat } from "@gpx-builder/core/browser";
+import type { LngLat, Position3 } from "@gpx-builder/core/browser";
 
 export type MapRoute = { id: string; points: LngLat[]; color?: string };
 
 // MapLibre paint colours can't use CSS variables or oklch, so hex it is.
 export const ROUTE_COLORS = ["#7fcfae", "#f0b58a", "#b9a3ee"];
+
+/** One map line per routed stage (`trips.route`), elevation dropped. */
+export const stageRoutes = (
+  stages: { stageId: string; line: Position3[] }[],
+): MapRoute[] =>
+  stages.map(({ stageId, line }) => ({
+    id: stageId,
+    points: line.map(([lng, lat]) => [lng, lat]),
+  }));
 
 export function routesToGeoJSON(routes: MapRoute[]) {
   return {

@@ -4,8 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createTRPCClient, httpLink } from "@trpc/client";
 import { scriptedModel, type Script } from "@gpx-builder/agent/test-util";
-import { chatIdOf, type AppRouter } from "@gpx-builder/core/server";
+import {
+  chatIdOf,
+  mintStageId,
+  mintWaypointId,
+  type AppRouter,
+} from "@gpx-builder/core/server";
 import { createChatStore, createTripStore } from "@gpx-builder/store";
+import { createChatHandler } from "./api-chat";
 import { startServer } from "./server";
 
 const TOKEN = "t".repeat(32);
@@ -21,6 +27,7 @@ model.doStream = async (o) => scriptedModel(script).doStream(o);
 const stub = (): never => {
   throw new Error("not used");
 };
+const trips = createTripStore({ tripsDir: join(dir, "trips") });
 let server: ReturnType<typeof startServer>;
 let trpc: ReturnType<typeof createTRPCClient<AppRouter>>;
 beforeAll(() => {
@@ -28,7 +35,7 @@ beforeAll(() => {
     token: TOKEN,
     allowedOrigins: [ORIGIN],
     deps: {
-      trips: createTripStore({ tripsDir: join(dir, "trips") }),
+      trips,
       chats: createChatStore({ dataDir: join(dir, "data") }),
       geocode: { search: stub },
       routing: {
@@ -282,4 +289,145 @@ test("/api/chat rejects whitespace-only text and tells a damaged trip from a mis
   )!;
   writeFileSync(join(dir, "trips", folder, "trip.json"), "{ nope");
   expect((await post("/api/chat", { tripId, text: "hi" })).status).toBe(500);
+});
+
+test("/api/chat streams a tool call's verdict", async () => {
+  const { tripId } = await trpc.trips.create.mutate();
+  // The stub geocoder throws, so the tool reports a failure.
+  script = [
+    { calls: [{ name: "find_place", input: { query: "Chamonix" } }] },
+    { text: "done" },
+  ];
+  const c = chunks(
+    await (await post("/api/chat", { tripId, text: "go" })).text(),
+  );
+  expect(c.find((x) => x.type === "tool-output-available")).toMatchObject({
+    output: { ok: false },
+  });
+});
+
+test("tRPC: route returns routed stages; export refuses unrouted ones; a corrupt trip is a 500", async () => {
+  const { tripId } = await trpc.trips.create.mutate();
+  const loaded = trips.load(tripId);
+  if (!loaded.ok) throw new Error(loaded.error.message);
+  const [from, to] = [mintWaypointId(), mintWaypointId()];
+  const wp = (id: typeof from, label: string) => ({
+    id,
+    kind: "user" as const,
+    label,
+    lngLat: [6, 45] as [number, number],
+  });
+  const stage = { id: mintStageId(1), from, to, via: [] };
+  const trip = {
+    ...loaded.value,
+    waypoints: { [from]: wp(from, "A"), [to]: wp(to, "B") },
+    stages: [stage],
+  };
+  trips.save(trip);
+
+  await expect(trpc.trips.export.mutate({ tripId })).rejects.toMatchObject({
+    data: { code: "PRECONDITION_FAILED" },
+  });
+
+  const line: [number, number, number][] = [
+    [6, 45, 1000],
+    [6.1, 45.1, 1100],
+  ];
+  const routed = trips.writeRoute(tripId, line);
+  if (!routed.ok) throw new Error(routed.error.message);
+  trips.save({ ...trip, stages: [{ ...stage, routeId: routed.value }] });
+  expect(await trpc.trips.route.query({ tripId })).toEqual([
+    { stageId: stage.id, line },
+  ]);
+
+  // Garbage on disk is "broken", not "missing".
+  const folder = readdirSync(join(dir, "trips")).find((d) =>
+    d.includes(tripId.slice(5, 13)),
+  )!;
+  writeFileSync(join(dir, "trips", folder, "trip.json"), "{");
+  await expect(trpc.trips.get.query({ tripId })).rejects.toMatchObject({
+    data: { code: "INTERNAL_SERVER_ERROR" },
+  });
+  rmSync(join(dir, "trips", folder), { recursive: true });
+});
+
+test("a handler that throws becomes a bare 500", async () => {
+  const boom = startServer({
+    token: TOKEN,
+    allowedOrigins: [ORIGIN],
+    deps: {
+      trips: {
+        ...trips,
+        load: () => {
+          throw new Error("secret path /Users/x");
+        },
+      },
+      chats: createChatStore({ dataDir: join(dir, "data") }),
+      geocode: { search: stub },
+      routing: {
+        capabilities: { maxWaypoints: 50, profiles: [] },
+        route: stub,
+      },
+      model,
+    },
+  });
+  const res = await fetch(boom.url + "/api/chat", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${TOKEN}`,
+      origin: ORIGIN,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      tripId: "trip_00000000-0000-4000-8000-000000000000",
+      text: "hi",
+    }),
+  });
+  boom.stop();
+  expect(res.status).toBe(500);
+  expect(await res.text()).not.toContain("secret");
+});
+
+const handlerDeps = (over: object = {}) =>
+  ({
+    trips,
+    chats: createChatStore({ dataDir: join(dir, "data") }),
+    geocode: { search: stub },
+    routing: { capabilities: { maxWaypoints: 50, profiles: [] }, route: stub },
+    model,
+    ...over,
+  }) as never;
+const chatReq = (tripId: string) =>
+  new Request("http://x/api/chat", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ tripId, text: "hi" }),
+  });
+
+test("a quiet turn sends keep-alive pings", async () => {
+  const { tripId } = await trpc.trips.create.mutate();
+  const real = model.doStream;
+  model.doStream = async (o) => {
+    await Bun.sleep(120);
+    return scriptedModel([{ text: "late" }]).doStream(o);
+  };
+  const res = await createChatHandler(handlerDeps(), 20)(chatReq(tripId));
+  const text = await res.text(); // the stream runs while it is read
+  model.doStream = real;
+  expect(text).toContain("data-ping");
+});
+
+test("a store that throws mid-turn ends the stream with a generic error", async () => {
+  const { tripId } = await trpc.trips.create.mutate();
+  const chats = {
+    ...createChatStore({ dataDir: join(dir, "data") }),
+    append: () => {
+      throw new Error("disk exploded at /Users/x");
+    },
+  };
+  script = [{ text: "hi" }];
+  const res = await createChatHandler(handlerDeps({ chats }))(chatReq(tripId));
+  const text = await res.text();
+  expect(text).toContain("the turn failed");
+  expect(text).not.toContain("/Users/x");
 });
