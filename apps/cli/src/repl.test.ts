@@ -24,6 +24,7 @@ beforeEach(() => {
   process.env.GPX_BUILDER_DATA_DIR = join(dir, "data");
   process.env.GPX_BUILDER_CACHE_DIR = join(dir, "cache");
   process.env.GPX_BUILDER_TRIPS_DIR = tripsDir();
+  delete process.env.GPX_BUILDER_PROVIDER;
   out = [];
   const grab = (...a: unknown[]) => void out.push(a.join(" "));
   spyOn(console, "log").mockImplementation(grab);
@@ -57,6 +58,7 @@ const collab = (over: Partial<Collaborators> = {}): Collaborators => ({
     sourceOf: async () => "env",
   } as never,
   createStrongModel: async () => ok({} as never),
+  toolCallingSelfTest: async () => ok(undefined),
   pendingQuestion: () => ok(undefined),
   runTurn: async () => ok({ pending: undefined }),
   ...over,
@@ -108,6 +110,34 @@ test("missing keys exit 1 and name them", async () => {
   };
   expect(await exits(main([], collab({ secrets: secrets as never })))).toBe(1);
   expect(said()).toContain("ORS_API_KEY and ANTHROPIC_API_KEY");
+});
+
+test("the provider env picks the key to require; unknown values exit 1", async () => {
+  const secrets = {
+    get: async (n: string) => (n === "MISTRAL_API_KEY" ? undefined : "key"),
+    sourceOf: async () => "env",
+  };
+  process.env.GPX_BUILDER_PROVIDER = "mistral";
+  try {
+    expect(await exits(main([], collab({ secrets: secrets as never })))).toBe(
+      1,
+    );
+    expect(said()).toContain("missing MISTRAL_API_KEY");
+    process.env.GPX_BUILDER_PROVIDER = "foo";
+    expect(await exits(main([], collab()))).toBe(1);
+    expect(said()).toContain("GPX_BUILDER_PROVIDER must be");
+  } finally {
+    delete process.env.GPX_BUILDER_PROVIDER;
+  }
+});
+
+test("a failing self-test warns and the session continues", async () => {
+  typed("exit");
+  const c = collab({
+    toolCallingSelfTest: async () => err({ message: "no tools" }),
+  });
+  expect(await exits(main([], c))).toBe(0);
+  expect(said()).toContain("self-test failed: no tools");
 });
 
 test("a model that can't be built exits 1", async () => {
