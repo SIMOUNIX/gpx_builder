@@ -15,7 +15,10 @@ import {
 import {
   createStrongModel,
   pendingQuestion,
+  providerFromEnv,
+  providerKey,
   runTurn,
+  toolCallingSelfTest,
   type PendingQuestion,
 } from "@gpx-builder/agent";
 import {
@@ -131,6 +134,7 @@ function printTrips(trips: TripStorePort) {
 export type Collaborators = {
   secrets: AppSecrets;
   createStrongModel: typeof createStrongModel;
+  toolCallingSelfTest: typeof toolCallingSelfTest;
   pendingQuestion: typeof pendingQuestion;
   runTurn: typeof runTurn;
 };
@@ -140,6 +144,7 @@ export async function main(
   c: Collaborators = {
     secrets: createSecrets(),
     createStrongModel,
+    toolCallingSelfTest,
     pendingQuestion,
     runTurn,
   },
@@ -154,27 +159,39 @@ export async function main(
   if (args.cmd === "trips") return printTrips(trips);
 
   const { secrets } = c;
+  const provider = providerFromEnv(process.env);
+  if (!provider.ok) {
+    fail(sanitize(provider.error.message));
+    process.exit(1);
+  }
+  const modelKey = providerKey(provider.value);
   const orsKey = await secrets.get("ORS_API_KEY");
-  const anthropicKey = await secrets.get("ANTHROPIC_API_KEY");
-  if (!orsKey || !anthropicKey) {
+  const modelKeyValue = await secrets.get(modelKey);
+  if (!orsKey || !modelKeyValue) {
     const missing = [
       !orsKey && "ORS_API_KEY",
-      !anthropicKey && "ANTHROPIC_API_KEY",
+      !modelKeyValue && modelKey,
     ].filter(Boolean);
     fail(`missing ${missing.join(" and ")} (set in .env)`);
     process.exit(1);
   }
   const sources = await Promise.all(
-    ["ORS_API_KEY", "ANTHROPIC_API_KEY"].map(
+    ["ORS_API_KEY", modelKey].map(
       async (n) => `${n} ← ${await secrets.sourceOf(n)}`,
     ),
   );
   console.log(dim(`secrets: ${sources.join(", ")}`));
-  const model = await c.createStrongModel(secrets);
+  const model = await c.createStrongModel(secrets, provider.value);
   if (!model.ok) {
     fail(`${sanitize(model.error.message)}`);
     process.exit(1);
   }
+  const selfTest = await c.toolCallingSelfTest(model.value);
+  if (!selfTest.ok)
+    console.log(
+      yellow(`warning: ${provider.value} tool-calling self-test failed: `) +
+        sanitize(selfTest.error.message),
+    );
 
   const cache = createDiskCache({ cacheDir: dirs.cacheDir });
   const chats = createChatStore({ dataDir: dirs.dataDir });

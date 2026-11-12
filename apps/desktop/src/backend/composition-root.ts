@@ -3,7 +3,11 @@ import {
   createOrsRouter,
   createPhotonGeocoder,
 } from "@gpx-builder/adapters";
-import { createStrongModel } from "@gpx-builder/agent";
+import {
+  createStrongModel,
+  providerFromEnv,
+  toolCallingSelfTest,
+} from "@gpx-builder/agent";
 import {
   createChatStore,
   createDiskCache,
@@ -18,8 +22,15 @@ export async function compose(): Promise<ServerDeps> {
   const secrets = createEnvSecrets(); // ponytail: keychain SecretsPort comes with Electrobun
   const orsKey = await secrets.get("ORS_API_KEY");
   if (!orsKey) throw new Error("missing ORS_API_KEY (set in .env)");
-  const model = await createStrongModel(secrets);
+  const provider = providerFromEnv(process.env); // ponytail: settings.json replaces the env var
+  if (!provider.ok) throw new Error(provider.error.message);
+  const model = await createStrongModel(secrets, provider.value);
   if (!model.ok) throw new Error(model.error.message);
+  const selfTest = await toolCallingSelfTest(model.value);
+  if (!selfTest.ok)
+    console.warn(
+      `warning: ${provider.value} tool-calling self-test failed: ${selfTest.error.message}`,
+    );
 
   const cache = createDiskCache({ cacheDir: dirs.cacheDir });
   return {
