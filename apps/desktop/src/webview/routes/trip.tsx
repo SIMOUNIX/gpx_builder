@@ -81,6 +81,7 @@ export function TripView() {
             <ChatMessages
               lines={lines}
               pending={pending}
+              busy={busy}
               error={error}
               onAnswer={send}
             />
