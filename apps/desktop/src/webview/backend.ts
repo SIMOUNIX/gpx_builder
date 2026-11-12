@@ -8,7 +8,7 @@ declare global {
 let backend: Backend | undefined;
 
 /** Production: the shell's preload (or a test) hands over the loopback origin and token. */
-export function setBackend(b: Backend) {
+export function setBackend(b: Backend | undefined) {
   backend = b;
 }
 
@@ -35,19 +35,28 @@ export function parseDevBackend(
   }
 }
 
+/** Dev only: take `?api=&token=` (or the stored copy) and remember it; `cleanUrl` is the page URL without just those params. */
+export function readDevBackend(
+  href: string,
+  storage: Pick<Storage, "getItem" | "setItem">,
+): { backend: Backend; cleanUrl: string } | undefined {
+  const url = new URL(href);
+  const backend = parseDevBackend(url.search, storage.getItem(KEY));
+  if (!backend) return undefined;
+  storage.setItem(KEY, JSON.stringify(backend));
+  url.searchParams.delete("api");
+  url.searchParams.delete("token");
+  return { backend, cleanUrl: url.href };
+}
+
 export function getBackend(): Backend {
   backend ??= globalThis.__GPX_BACKEND__;
   // A dev exception to §3.1; `import.meta.env.DEV` is false in a build, so the token is never read from the URL there.
   if (!backend && import.meta.env.DEV) {
-    const found = parseDevBackend(location.search, sessionStorage.getItem(KEY));
-    if (found) {
-      sessionStorage.setItem(KEY, JSON.stringify(found));
-      // Keep the token out of the URL bar, and leave any other params alone.
-      const url = new URL(location.href);
-      url.searchParams.delete("api");
-      url.searchParams.delete("token");
-      history.replaceState(null, "", url);
-      backend = found;
+    const dev = readDevBackend(location.href, sessionStorage);
+    if (dev) {
+      history.replaceState(null, "", dev.cleanUrl); // keeps the token out of the URL bar
+      backend = dev.backend;
     }
   }
   if (!backend)

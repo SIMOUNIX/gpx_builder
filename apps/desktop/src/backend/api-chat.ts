@@ -10,7 +10,7 @@ const deny = (status: number, why: string) =>
 const ChatBody = z.object({ tripId: TripId, text: z.string().trim().min(1) });
 
 /** `/api/chat`: runs one agent turn per request and streams it. The LLM side of the server. */
-export function createChatHandler(deps: ServerDeps) {
+export function createChatHandler(deps: ServerDeps, keepAliveMs = 5_000) {
   const running = new Set<string>(); // trips with a chat turn in flight
 
   /** Streams one agent turn as AI SDK UIMessage SSE. */
@@ -38,7 +38,7 @@ export function createChatHandler(deps: ServerDeps) {
         // a routing retry can be quiet for longer: a transient ping keeps it open.
         const keepAlive = setInterval(
           () => writer.write({ type: "data-ping", data: {}, transient: true }),
-          5_000,
+          keepAliveMs,
         );
         try {
           writer.write({ type: "start" });
