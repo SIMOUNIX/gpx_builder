@@ -13,7 +13,7 @@ A POI the route passes through, to take a break or fetch something: either on th
 _Avoid_: break, halt
 
 **Detour**:
-The extra walking distance, there and back on real paths, needed to reach a POI from the route.
+How much a stage's distance and walking time change when it is routed through a POI. Usually extra, sometimes negative when the path through the POI is shorter.
 _Avoid_: gap (reserved for the distance between water sources), offset
 
 **Detour allowance**:
