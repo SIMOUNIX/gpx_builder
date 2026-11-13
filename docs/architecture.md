@@ -507,7 +507,7 @@ Tolerances and thresholds live in one `rules.ts` table in `core`.
 
 ### 12.5 Basemap, weather, sun
 
-- **Basemap:** Protomaps daily planet build, cut to a region with `pmtiles extract` and a bbox. Pin the build date. Never pull tiles from OSM's tile servers.
+- **Basemap:** OpenFreeMap hosted vector tiles, _liberty_ style, online only; hillshade and 3D terrain from AWS Terrain Tiles (Terrarium). See [ADR 0001](adr/0001-online-basemap.md). Never pull tiles from OSM's tile servers.
 - **Weather:** Open-Meteo, no key.
 - **Sun:** suncalc, computed in the trip's timezone (`Europe/Paris` for France, including the daylight-saving change).
 
