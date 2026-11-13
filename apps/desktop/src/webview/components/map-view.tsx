@@ -1,14 +1,19 @@
 import {
   GeoJSONSource,
   Map as MapLibreMap,
+  setWorkerUrl,
   type StyleSpecification,
 } from "maplibre-gl";
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { boundsOf, routesToGeoJSON, type MapRoute } from "./map-geo";
 
 export type { MapRoute };
+
+// maplibre-gl 6 ships its worker as a separate file; Vite must be told where it is.
+setWorkerUrl(workerUrl);
 
 const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
 
@@ -17,6 +22,9 @@ const BASEMAP = {
   light: "https://tiles.openfreemap.org/styles/liberty",
   dark: "https://tiles.openfreemap.org/styles/dark",
 };
+
+// Camera before any route has loaded ([lng, lat]).
+const PARIS: [number, number] = [2.3522, 48.8566];
 
 // Offline fallback: the route still draws on a plain background.
 const blankStyle = (): StyleSpecification => ({
@@ -59,6 +67,8 @@ export function MapView({
       interactive,
       attributionControl: interactive ? { compact: true } : false,
       style: dark() ? BASEMAP.dark : BASEMAP.light,
+      center: PARIS,
+      zoom: 10,
     });
     let styled = false;
     m.on("style.load", () => {
@@ -74,8 +84,9 @@ export function MapView({
       if (latest.current) draw(m, latest.current);
     });
     m.on("error", (e) => {
-      // A 404 is just an empty tile, not an outage.
+      // Not outages: a 404 is an empty tile, and a style may name a sprite icon it doesn't ship.
       if ((e.error as { status?: number }).status === 404) return;
+      if (/^Image ".*" could not be loaded/.test(e.error.message)) return;
       setOffline(true);
       if (!styled) m.setStyle(blankStyle()); // style fetch failed: keep the route on a plain background
     });
@@ -98,7 +109,8 @@ export function MapView({
 
   return (
     <div className={cn("bg-muted relative overflow-hidden", className)}>
-      <div ref={el} className="absolute inset-0" />
+      {/* size-full, not absolute: maplibre-gl.css (unlayered) forces position:relative on the container and beats Tailwind's layered utilities. */}
+      <div ref={el} className="size-full" />
       {routes && routes.every((r) => r.points.length === 0) && (
         <p className="caps text-muted-foreground pointer-events-none absolute inset-0 grid place-items-center">
           No route yet
