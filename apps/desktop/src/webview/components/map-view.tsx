@@ -6,7 +6,9 @@ import {
 } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { boundsOf, routesToGeoJSON, type MapRoute } from "./map-geo";
 
@@ -60,6 +62,7 @@ export function MapView({
   const map = useRef<MapLibreMap | null>(null);
   const latest = useRef(routes); // read when a style (re)loads, which wipes the route layer
   const [offline, setOffline] = useState(false);
+  const [limit, setLimit] = useState<"min" | "max" | null>(null); // zoom bound reached, disables a button
 
   useEffect(() => {
     const m = new MapLibreMap({
@@ -90,6 +93,12 @@ export function MapView({
       setOffline(true);
       if (!styled) m.setStyle(blankStyle()); // style fetch failed: keep the route on a plain background
     });
+    m.on("zoom", () => {
+      const z = m.getZoom();
+      setLimit(
+        z <= m.getMinZoom() ? "min" : z >= m.getMaxZoom() ? "max" : null,
+      );
+    });
     const ro = new ResizeObserver(() => m.resize());
     ro.observe(el.current!);
     map.current = m;
@@ -115,6 +124,31 @@ export function MapView({
         <p className="caps text-muted-foreground pointer-events-none absolute inset-0 grid place-items-center">
           No route yet
         </p>
+      )}
+      {interactive && (
+        // bottom-10 clears the compact attribution control.
+        <div className="bg-background absolute right-2.5 bottom-10 flex flex-col divide-y overflow-hidden rounded-md border shadow-xs">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="rounded-none"
+            aria-label="Zoom in"
+            disabled={limit === "max"}
+            onClick={() => map.current?.zoomIn()}
+          >
+            <Plus />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="rounded-none"
+            aria-label="Zoom out"
+            disabled={limit === "min"}
+            onClick={() => map.current?.zoomOut()}
+          >
+            <Minus />
+          </Button>
+        </div>
       )}
       {interactive && offline && (
         <p className="caps text-muted-foreground pointer-events-none absolute inset-x-0 top-3 text-center">
