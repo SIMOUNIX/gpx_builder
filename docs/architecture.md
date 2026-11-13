@@ -507,7 +507,7 @@ Tolerances and thresholds live in one `rules.ts` table in `core`.
 
 ### 12.5 Basemap, weather, sun
 
-- **Basemap:** OpenFreeMap hosted vector tiles, online only (ADR-0001). Style `liberty` in light mode and OpenFreeMap's `dark` style in dark mode (there is no dark liberty), chosen when the map is created. Never pull tiles from OSM's tile servers.
+- **Basemap:** OpenFreeMap hosted vector tiles, online only. See [ADR 0001](adr/0001-online-basemap.md). Style `liberty` in light mode and OpenFreeMap's `dark` style in dark mode (there is no dark liberty), chosen when the map is created. Hillshade and 3D terrain from AWS Terrain Tiles (Terrarium). Never pull tiles from OSM's tile servers.
 - **Weather:** Open-Meteo, no key.
 - **Sun:** suncalc, computed in the trip's timezone (`Europe/Paris` for France, including the daylight-saving change).
 
