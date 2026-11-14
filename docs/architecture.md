@@ -769,5 +769,5 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 
 - **Chart:** shadcn `chart` (a wrapper over `recharts`, pinned 3.10.1), shown only under the expanded map. A `Trip | Day 1 | Day 2…` selector (local component state) switches between the whole trip and one stage.
 - **Pure module:** `webview/components/profile-geo.ts` (no MapLibre, no DOM). `profileSamples(stages, stageId?)` returns `{distanceKm, elevationM, point}[]` (distance accumulates across stages; one day restarts at 0). `pointAtDistance(samples, km)` interpolates between samples and clamps at both ends. Distance uses `haversineM` from core.
-- **Hover:** the chart reports the hovered distance, `pointAtDistance` turns it into a map point, and `MapView` draws it as a marker (`marker` prop).
+- **Hover:** the chart reports the hovered distance, `pointAtDistance` turns it into a map point, and `MapView` draws it as a marker (`marker` prop). The hover point is state of `ExpandedMap`, not `TripView`, so hovering re-renders only the map and chart, not the chat.
 - **Missing elevation:** samples with a non-finite elevation are dropped; with fewer than two samples the chart shows "No elevation data". The route still draws.
