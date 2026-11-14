@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "./search-input";
 import { trpc } from "@/api";
 import type { LngLat } from "@gpx-builder/core/browser";
 
@@ -46,21 +45,17 @@ export function PlaceSearch({ onPick }: { onPick: (c: Candidate) => void }) {
 
   return (
     <div>
-      <div className="relative">
-        <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-        <Input
-          value={text}
-          placeholder="Search a place"
-          aria-label="Search a place"
-          className="bg-background pl-8"
-          onChange={(e) => {
-            setText(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
-        />
-      </div>
+      <SearchInput
+        value={text}
+        placeholder="Search a place"
+        aria-label="Search a place"
+        onChange={(e) => {
+          setText(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
+      />
       {open && settled && (
         <ul className="bg-background mt-1 max-h-72 overflow-y-auto rounded-md border text-sm shadow-xs">
           {note && <li className="text-muted-foreground px-3 py-2">{note}</li>}
