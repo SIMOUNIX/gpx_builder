@@ -2,13 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { phase, TripId } from "@gpx-builder/core/browser";
-import { X } from "lucide-react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ChatMessages } from "@/components/chat-messages";
 import { ChatInput } from "@/components/chat-input";
+import { ExpandedMap } from "@/components/expanded-map";
 import { stageRoutes } from "@/components/map-geo";
 import { MapView } from "@/components/map-view";
-import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   SidebarInset,
@@ -90,18 +89,11 @@ export function TripView() {
             />
           </ScrollArea>
           {mapExpanded ? (
-            <div className="bg-background absolute inset-0">
-              <MapView routes={gpx} className="size-full" />
-              <Button
-                size="icon"
-                variant="secondary"
-                className="absolute top-3 right-3 rounded-full"
-                onClick={() => setMapExpanded(false)}
-                aria-label="Close map"
-              >
-                <X />
-              </Button>
-            </div>
+            <ExpandedMap
+              routes={gpx}
+              stages={stages}
+              onClose={() => setMapExpanded(false)}
+            />
           ) : (
             <div className="absolute right-6 bottom-4 w-60 space-y-2">
               <button

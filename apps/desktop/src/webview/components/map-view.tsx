@@ -1,11 +1,13 @@
 import {
   GeoJSONSource,
   Map as MapLibreMap,
+  Marker,
   setWorkerUrl,
   type StyleSpecification,
 } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
+import type { LngLat } from "@gpx-builder/core/browser";
 import { Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -53,13 +55,16 @@ export function MapView({
   routes,
   className,
   interactive = true,
+  marker,
 }: {
   routes: MapRoute[] | undefined;
   className?: string;
   interactive?: boolean;
+  marker?: LngLat | null;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
+  const dot = useRef<Marker | null>(null);
   const latest = useRef(routes); // read when a style (re)loads, which wipes the route layer
   const [offline, setOffline] = useState(false);
   const [limit, setLimit] = useState<"min" | "max" | null>(null); // zoom bound reached, disables a button
@@ -108,6 +113,20 @@ export function MapView({
       map.current = null;
     };
   }, [interactive]);
+
+  // Hover dot from the elevation profile: one persistent marker, moved on each hover.
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    if (!marker) return void dot.current?.remove();
+    if (!dot.current) {
+      const el = document.createElement("div");
+      el.className =
+        "bg-primary pointer-events-none size-3.5 rounded-full border-2 border-white shadow";
+      dot.current = new Marker({ element: el });
+    }
+    dot.current.setLngLat(marker).addTo(m);
+  }, [marker]);
 
   useEffect(() => {
     latest.current = routes;
