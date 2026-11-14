@@ -39,11 +39,11 @@ apps/desktop/src/backend/
   server.test.ts        tests
 ```
 
-This follows the [tRPC Bun example](https://github.com/trpc/trpc/tree/main/examples/bun): `Bun.serve` calls `fetchRequestHandler`, and an `appRouter` is built from sub-routers. Ours merges two with `t.mergeRouters`, so paths stay flat (`trips.list`, not `core.trips.list`).
+This follows the [tRPC Bun example](https://github.com/trpc/trpc/tree/main/examples/bun): `Bun.serve` calls `fetchRequestHandler`, and an `appRouter` is built from sub-routers. Ours merges three with `t.mergeRouters`, so paths stay flat (`trips.list`, not `core.trips.list`).
 
 ## Why the router lives in `core`
 
-`AppRouter` is a **type** the webview uses to get end-to-end types. If the router lived in the backend, the webview would have to import backend code. So the router is in `core`, and it receives its dependencies (`trips`, `chats` ports) as arguments (`createAppRouter({ trips, chats })`). `core` imports nothing from the other packages; the backend injects the real disk stores. The webview writes `import type { AppRouter } from "@gpx-builder/core/server/app-router"`, and ESLint allows that one import and nothing else from `core/server`.
+`AppRouter` is a **type** the webview uses to get end-to-end types. If the router lived in the backend, the webview would have to import backend code. So the router is in `core`, and it receives its dependencies (`trips`, `chats`, `geocode` ports) as arguments (`createAppRouter({ trips, chats, geocode })`). `core` imports nothing from the other packages; the backend injects the real disk stores. The webview writes `import type { AppRouter } from "@gpx-builder/core/server/app-router"`, and ESLint allows that one import and nothing else from `core/server`.
 
 ## 1. The gate (every request, `server.ts`)
 

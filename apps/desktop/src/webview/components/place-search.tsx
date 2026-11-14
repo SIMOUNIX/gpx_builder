@@ -3,12 +3,13 @@ import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/api";
+import type { LngLat } from "@gpx-builder/core/browser";
 
 type Candidate = {
   placeId: string;
   label: string;
   kind: string;
-  lngLat: [number, number];
+  lngLat: LngLat;
 };
 
 // Waits for typing to pause so the public geocoder isn't hit on every keystroke.
