@@ -48,9 +48,8 @@ export function Home() {
       <MapView
         routes={isPending ? undefined : routes}
         className="absolute inset-0"
-      />
-      <div className="absolute inset-x-0 top-0 flex items-center gap-2 p-4">
-        <div className="relative max-w-sm flex-1">
+      >
+        <div className="relative">
           <Search className="text-muted-foreground absolute top-2.5 left-3 size-4" />
           <Input
             className="bg-card/80 rounded-full pl-9 backdrop-blur"
@@ -59,10 +58,12 @@ export function Home() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+      </MapView>
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center p-2.5">
         <Button
           variant="outline"
           size="icon"
-          className="bg-card/80 ml-auto rounded-full backdrop-blur"
+          className="bg-card/80 pointer-events-auto ml-auto rounded-full backdrop-blur"
           aria-label="Settings"
         >
           <Settings />

@@ -45,7 +45,7 @@ export function PlaceSearch({ onPick }: { onPick: (c: Candidate) => void }) {
         : undefined;
 
   return (
-    <div className="absolute top-2.5 left-2.5 w-72">
+    <div>
       <div className="relative">
         <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
         <Input
