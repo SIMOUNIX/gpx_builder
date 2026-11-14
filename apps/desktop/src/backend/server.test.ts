@@ -8,6 +8,8 @@ import {
   chatIdOf,
   mintStageId,
   mintWaypointId,
+  PlaceId,
+  type GeocodePort,
   type AppRouter,
 } from "@gpx-builder/core/server";
 import { createChatStore, createTripStore } from "@gpx-builder/store";
@@ -27,6 +29,8 @@ model.doStream = async (o) => scriptedModel(script).doStream(o);
 const stub = (): never => {
   throw new Error("not used");
 };
+// The fake geocoder's answer is replaced per test.
+let geo: GeocodePort["search"] = stub;
 const trips = createTripStore({ tripsDir: join(dir, "trips") });
 let server: ReturnType<typeof startServer>;
 let trpc: ReturnType<typeof createTRPCClient<AppRouter>>;
@@ -37,7 +41,7 @@ beforeAll(() => {
     deps: {
       trips,
       chats: createChatStore({ dataDir: join(dir, "data") }),
-      geocode: { search: stub },
+      geocode: { search: (q) => geo(q) },
       routing: {
         capabilities: { maxWaypoints: 50, profiles: [] },
         route: stub,
@@ -89,6 +93,36 @@ const chunks = (sse: string) =>
     .map(
       (l) => JSON.parse(l.slice(6)) as { type: string; [k: string]: unknown },
     );
+
+test("places.search returns the geocoder's candidates", async () => {
+  const candidate = {
+    placeId: PlaceId.parse("geo:photon:node/1"),
+    label: "Chamonix",
+    kind: "place=town",
+    lngLat: [6.87, 45.92] as [number, number],
+  };
+  geo = async () => ({ ok: true, value: [candidate] });
+  expect(await trpc.places.search.query({ query: " Chamonix " })).toEqual([
+    candidate,
+  ]);
+});
+
+test("places.search fails when the geocoder is unreachable", async () => {
+  geo = async () => ({
+    ok: false,
+    error: { kind: "unavailable", message: "down" },
+  });
+  await expect(trpc.places.search.query({ query: "x" })).rejects.toThrow(
+    "down",
+  );
+});
+
+test("places.search needs the token", async () => {
+  const res = await fetch(`${server.url}/api/file/places.search`, {
+    headers: { origin: ORIGIN },
+  });
+  expect(res.status).toBe(401);
+});
 
 test("ping answers with a token and an allowed origin", async () => {
   const res = await call("/ping");

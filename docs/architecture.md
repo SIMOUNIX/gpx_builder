@@ -763,6 +763,7 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 - **Pending:** `data-pending` (live) or the last unanswered `ask_user` / `export_trip` call (stored, so it survives a reload) renders the question with option buttons, or yes/no for the export. The answer is the next send. Hidden while a turn runs; the input is disabled while a turn runs (the server answers 409 otherwise).
 - **Home:** creates the trip (`trips.create`), then navigates to `/trips/$tripId?first=<text>`; the trip view sends it once and clears the param.
 - **Backend address:** production/Electrobun sets `globalThis.__GPX_BACKEND__ = { url, token }` in a preload before the bundle loads, or calls the exported `setBackend`. Dev only (`import.meta.env.DEV`, removed from builds): `?api=<url>&token=<token>` is read once into `sessionStorage` and stripped from the URL; `bun run serve` prints that ready link. A dev exception to §3.1.
+- **Place search:** a debounced (400 ms, ≥3 chars) box at the map's top-left calls `places.search`; picking a result `flyTo`s it, zoom chosen by OSM kind (`flyTarget` in `map-geo.ts`). No marker, no trip change.
 - **Map:** one line per routed stage from `trips.route` (home: every trip's stages; trip view: its own).
 
 **Elevation profile (2026-11-13, pending user review).**

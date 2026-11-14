@@ -12,7 +12,8 @@ import { Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { boundsOf, routesToGeoJSON, type MapRoute } from "./map-geo";
+import { boundsOf, flyTarget, routesToGeoJSON, type MapRoute } from "./map-geo";
+import { PlaceSearch } from "./place-search";
 
 export type { MapRoute };
 
@@ -143,6 +144,9 @@ export function MapView({
         <p className="caps text-muted-foreground pointer-events-none absolute inset-0 grid place-items-center">
           No route yet
         </p>
+      )}
+      {interactive && (
+        <PlaceSearch onPick={(c) => map.current?.flyTo(flyTarget(c))} />
       )}
       {interactive && (
         // bottom-10 clears the compact attribution control.

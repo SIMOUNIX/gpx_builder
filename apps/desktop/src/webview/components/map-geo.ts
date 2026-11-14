@@ -38,3 +38,23 @@ export function boundsOf(routes: MapRoute[]): [LngLat, LngLat] | undefined {
     [Math.max(...lngs), Math.max(...lats)],
   ];
 }
+
+// Zoom by OSM `key=value` (GeocodeCandidate.kind): the scale at which that kind of place reads well.
+const ZOOM_BY_KIND: Record<string, number> = {
+  "place=country": 5,
+  "place=state": 7,
+  "place=county": 9,
+  "place=city": 11,
+  "place=town": 12,
+  "place=village": 13,
+  "place=hamlet": 14,
+  "natural=peak": 13,
+  "highway=residential": 15,
+};
+const DEFAULT_ZOOM = 12;
+
+/** Where the camera lands for a search result ([lng, lat] centre). */
+export const flyTarget = (c: { lngLat: LngLat; kind: string }) => ({
+  center: c.lngLat,
+  zoom: ZOOM_BY_KIND[c.kind] ?? DEFAULT_ZOOM,
+});

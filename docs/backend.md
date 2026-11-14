@@ -30,6 +30,7 @@ packages/core/src/server/
     base.ts             shared: initTRPC, AppRouterDeps, input schema, store-error → tRPC error
     file-router.ts      trips.list / get / create / route / export
     chat-router.ts      chats.messages (the transcript)
+    place-router.ts     places.search (geocoder for the map's search box)
 apps/desktop/src/backend/
   server.ts             Bun.serve + the gate + dispatch by path
   api-chat.ts           /api/chat: one agent turn, streamed
@@ -67,6 +68,7 @@ Responses get `Access-Control-Allow-Origin` set to the one allowed origin, never
 | `trips.route`    | query    | `{stageId, line}[]` for each routed stage                                              |
 | `trips.export`   | mutation | writes the GPX files, returns the paths (`PRECONDITION_FAILED` if a stage is unrouted) |
 | `chats.messages` | query    | the stored transcript (`[]` before the first message)                                  |
+| `places.search`  | query    | `{query}` → geocoder candidates; a geocoder failure is a tRPC error. Saves nothing     |
 
 Each procedure calls a store **port** and returns plain JSON. Store errors become tRPC errors in `routers/base.ts` (`not-found` → `NOT_FOUND`).
 
