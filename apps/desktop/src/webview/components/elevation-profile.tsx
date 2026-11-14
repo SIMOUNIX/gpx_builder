@@ -8,7 +8,13 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { pointAtDistance, profileSamples } from "./profile-geo";
+import {
+  BAND_COLORS,
+  BANDS,
+  pointAtDistance,
+  profileBands,
+  profileSamples,
+} from "./profile-geo";
 
 const config = {
   elevationM: { label: "Elevation", color: "var(--primary)" },
@@ -27,6 +33,7 @@ export function ElevationProfile({
     () => profileSamples(stages, stageId),
     [stages, stageId],
   );
+  const bands = useMemo(() => profileBands(samples), [samples]);
   const pick = (id?: string) => {
     setStageId(id);
     onHover(null);
@@ -64,6 +71,22 @@ export function ElevationProfile({
             }}
             onMouseLeave={() => onHover(null)}
           >
+            <defs>
+              {/* Hard stops: one flat colour per band, spanning the first to the last sample. */}
+              <linearGradient id="slope" x1="0" x2="1" y1="0" y2="0">
+                {bands.flatMap((b) => {
+                  const first = samples[0]!.distanceKm;
+                  const span = samples.at(-1)!.distanceKm - first;
+                  return [b.fromKm, b.toKm].map((km, i) => (
+                    <stop
+                      key={`${b.fromKm}-${i}`}
+                      offset={(km - first) / span}
+                      stopColor={BAND_COLORS[b.band]}
+                    />
+                  ));
+                })}
+              </linearGradient>
+            </defs>
             <XAxis
               type="number"
               dataKey="distanceKm"
@@ -93,13 +116,24 @@ export function ElevationProfile({
               dataKey="elevationM"
               type="monotone"
               stroke="var(--color-elevationM)"
-              fill="var(--color-elevationM)"
-              fillOpacity={0.2}
+              fill="url(#slope)"
+              fillOpacity={0.45}
               isAnimationActive={false}
             />
           </AreaChart>
         </ChartContainer>
       )}
+      <ul className="caps text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+        {BANDS.map((b) => (
+          <li key={b.band} className="flex items-center gap-1.5">
+            <span
+              className="size-2.5 rounded-sm"
+              style={{ background: b.color }}
+            />
+            {b.label}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

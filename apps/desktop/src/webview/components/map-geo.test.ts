@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { boundsOf, flyTarget, routesToGeoJSON, stageRoutes } from "./map-geo";
+import { boundsOf, flyTarget, routesToGeoJSON, slopeRoutes } from "./map-geo";
+import { BAND_COLORS } from "./profile-geo";
 
 const routes = [
   {
@@ -24,24 +25,24 @@ test("routesToGeoJSON drops routes with fewer than 2 points", () => {
   expect(routesToGeoJSON(routes).features).toHaveLength(1);
 });
 
-test("stageRoutes makes one 2D line per stage", () => {
-  expect(
-    stageRoutes([
-      {
-        stageId: "s1",
-        line: [
-          [1, 2, 300],
-          [3, 4, 310],
-        ],
-      },
-    ]),
-  ).toEqual([
+test("slopeRoutes colours each segment with its band colour", () => {
+  const r = slopeRoutes([
+    {
+      stageId: "s1",
+      line: [
+        [1, 2, 300],
+        [3, 4, 310],
+      ],
+    },
+  ]);
+  expect(r).toEqual([
     {
       id: "s1",
       points: [
         [1, 2],
         [3, 4],
       ],
+      color: BAND_COLORS.flat,
     },
   ]);
 });
