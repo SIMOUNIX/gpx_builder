@@ -3,9 +3,10 @@ import {
   Map as MapLibreMap,
   Marker,
   setWorkerUrl,
+  addProtocol,
   type RasterDEMSourceSpecification,
-  type StyleSpecification,
 } from "maplibre-gl";
+import contour from "maplibre-contour";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { LngLat } from "@gpx-builder/core/browser";
@@ -19,6 +20,12 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { boundsOf, flyTarget, routesToGeoJSON, type MapRoute } from "./map-geo";
+import {
+  CONTOUR_THRESHOLDS,
+  contourLayers,
+  outdoorStyle,
+  palette,
+} from "./outdoor-style";
 import { PlaceSearch } from "./place-search";
 import { BANDS } from "./profile-geo";
 
@@ -29,37 +36,17 @@ setWorkerUrl(workerUrl);
 
 const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
 
-// OpenFreeMap hosted styles (ADR-0001). Chosen at load; there is no dark liberty, so dark uses their `dark` style.
-const BASEMAP = {
-  light: "https://tiles.openfreemap.org/styles/liberty",
-  dark: "https://tiles.openfreemap.org/styles/dark",
-};
-
 // AWS Terrain Tiles (Terrarium encoding, no key) feed the hillshade layer.
+const TERRAIN_URL =
+  "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 const TERRAIN: RasterDEMSourceSpecification = {
   type: "raster-dem",
   encoding: "terrarium",
-  tiles: [
-    "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
-  ],
+  tiles: [TERRAIN_URL],
   tileSize: 256,
   maxzoom: 15,
   attribution: "Terrain: AWS Terrain Tiles",
 };
-
-// Altitude tint shown in 3D (muted green to tan to pale grey; no red or blue, which are the slope colours). Fixed 0-3000 m, same everywhere.
-const RELIEF_COLORS: (number | string)[] = [
-  0,
-  "#9dbb94",
-  300,
-  "#c4cf9f",
-  1000,
-  "#d8c9a0",
-  2000,
-  "#cdbfae",
-  3000,
-  "#f2f2f0",
-];
 
 const PITCH_3D = 60;
 const EXAGGERATION = 1.5;
@@ -67,18 +54,14 @@ const EXAGGERATION = 1.5;
 // Camera before any route has loaded ([lng, lat]).
 const PARIS: [number, number] = [2.3522, 48.8566];
 
-// Offline fallback: the route still draws on a plain background.
-const blankStyle = (): StyleSpecification => ({
-  version: 8,
-  sources: {},
-  layers: [
-    {
-      id: "background",
-      type: "background",
-      paint: { "background-color": dark() ? "#262626" : "#f1efe9" },
-    },
-  ],
+// Contour tiles are generated in the webview from the same Terrarium DEM (on the main thread).
+// ponytail: `worker: true` would move this off the UI thread but needs its worker bundled by Vite.
+const dem = new contour.DemSource({
+  url: TERRAIN_URL,
+  encoding: "terrarium",
+  maxzoom: 15,
 });
+dem.setupMaplibre({ addProtocol });
 
 function draw(m: MapLibreMap, routes: MapRoute[]) {
   (m.getSource("routes") as GeoJSONSource).setData(routesToGeoJSON(routes));
@@ -108,6 +91,8 @@ export function MapView({
   const latest = useRef(routes); // read when a style (re)loads, which wipes the route layer
   const [hillshade, setHillshade] = useState(false); // off by default, not saved
   const shaded = useRef(hillshade); // read on style load, like `latest`
+  const [contours, setContours] = useState(false); // off by default, not saved
+  const contoured = useRef(contours); // read on style load
   const [terrain3d, setTerrain3d] = useState(false); // off by default, not saved
   const is3d = useRef(terrain3d); // read on style load, which wipes terrain
   const [offline, setOffline] = useState(false);
@@ -118,13 +103,11 @@ export function MapView({
       container: el.current!,
       interactive,
       attributionControl: interactive ? { compact: true } : false,
-      style: dark() ? BASEMAP.dark : BASEMAP.light,
+      style: outdoorStyle(dark()), // built in code: no style fetch, so a basemap outage only leaves tiles missing
       center: PARIS,
       zoom: 10,
     });
-    let styled = false;
     m.on("style.load", () => {
-      styled = true;
       if (interactive) {
         // Under the first label layer, so labels stay readable; the route is added after, so it stays on top.
         const labels = m.getStyle().layers.find((l) => l.type === "symbol")?.id;
@@ -140,7 +123,7 @@ export function MapView({
                 "interpolate",
                 ["linear"],
                 ["elevation"],
-                ...RELIEF_COLORS,
+                ...palette(dark()).relief,
               ],
               "color-relief-opacity": 0.5,
             },
@@ -156,6 +139,20 @@ export function MapView({
           },
           labels,
         );
+        m.addSource("contours", {
+          type: "vector",
+          tiles: [
+            dem.contourProtocolUrl({
+              thresholds: CONTOUR_THRESHOLDS,
+              elevationKey: "ele",
+              levelKey: "level",
+              contourLayer: "contours",
+            }),
+          ],
+          maxzoom: 15,
+        });
+        for (const l of contourLayers(dark(), contoured.current))
+          m.addLayer(l, labels);
         if (is3d.current)
           m.setTerrain({ source: "terrain", exaggeration: EXAGGERATION });
       }
@@ -170,12 +167,13 @@ export function MapView({
       if (latest.current) draw(m, latest.current);
     });
     m.on("error", (e) => {
-      if ((e as { sourceId?: string }).sourceId === "terrain") return; // hillshade is optional: map and route keep working
-      // Not outages: a 404 is an empty tile, and a style may name a sprite icon it doesn't ship.
+      // Hillshade, tint and contours are optional: the map and route keep working without them.
+      const source = (e as { sourceId?: string }).sourceId;
+      if (source === "terrain" || source === "contours") return;
+      // Not outages: a 404 is an empty tile.
       if ((e.error as { status?: number }).status === 404) return;
       if (/^Image ".*" could not be loaded/.test(e.error.message)) return;
       setOffline(true);
-      if (!styled) m.setStyle(blankStyle()); // style fetch failed: keep the route on a plain background
     });
     m.on("zoom", () => {
       const z = m.getZoom();
@@ -217,6 +215,14 @@ export function MapView({
         hillshade ? "visible" : "none",
       );
   }, [hillshade]);
+
+  useEffect(() => {
+    contoured.current = contours;
+    const m = map.current;
+    for (const id of ["contours-minor", "contours-major", "contours-label"])
+      if (m?.getLayer(id))
+        m.setLayoutProperty(id, "visibility", contours ? "visible" : "none");
+  }, [contours]);
 
   useEffect(() => {
     is3d.current = terrain3d;
@@ -284,6 +290,14 @@ export function MapView({
                   onChange={(e) => setHillshade(e.target.checked)}
                 />
                 Hillshade
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={contours}
+                  onChange={(e) => setContours(e.target.checked)}
+                />
+                Contours
               </label>
             </PopoverContent>
           </Popover>

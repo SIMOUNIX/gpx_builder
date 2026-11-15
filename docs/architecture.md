@@ -508,7 +508,7 @@ Tolerances and thresholds live in one `rules.ts` table in `core`.
 
 ### 12.5 Basemap, weather, sun
 
-- **Basemap:** OpenFreeMap hosted vector tiles, online only. See [ADR 0001](adr/0001-online-basemap.md). Style `liberty` in light mode and OpenFreeMap's `dark` style in dark mode (there is no dark liberty), chosen when the map is created. Hillshade and 3D terrain from AWS Terrain Tiles (Terrarium). Never pull tiles from OSM's tile servers.
+- **Basemap:** OpenFreeMap hosted vector tiles, online only. See [ADR 0001](adr/0001-online-basemap.md). Our own outdoor style (light and dark palettes, chosen when the map is created; see the outdoor map style entry). Hillshade and 3D terrain from AWS Terrain Tiles (Terrarium). Never pull tiles from OSM's tile servers.
 - **Weather:** Open-Meteo, no key.
 - **Sun:** suncalc, computed in the trip's timezone (`Europe/Paris` for France, including the daylight-saving change).
 
@@ -792,3 +792,9 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 - **Control:** a `3D` text button (`aria-label="3D terrain"`, `aria-pressed`, highlighted when on) at the bottom of the bottom-right zoom stack, interactive maps only. Off by default, not saved.
 - **Behaviour:** on = `setTerrain` on the shared `terrain` source with 1.5× exaggeration and an eased pitch of 60° (bearing untouched). Off = `setTerrain(null)` and pitch back to 0, bearing kept. A style load wipes terrain, so it is re-applied there when 3D is on. The route is a line layer, so MapLibre drapes it on the terrain and it stays visible.
 - **Relief tint:** the terrain is geometry only and the vector basemap is flat-coloured, so 3D adds a `color-relief` layer on the same `terrain` source, visible only in 3D, at 50% opacity, under the first label layer (below hillshade, so both can show) and below the route. Fixed 0–3000 m ramp (soft green → tan → pale grey), no red or blue so the slope-coloured route stays readable. 3D does not touch hillshade. Switching 3D off hides the tint.
+
+**Outdoor map style (2026-11-15, pending user review).**
+
+- **Style:** `outdoor-style.ts` builds the whole basemap style in code (about 30 layers over the OpenMapTiles layers of OpenFreeMap's planet tiles; glyphs from OpenFreeMap, no sprite, so no icons). One layer list, two hex palettes (`LIGHT`, `DARK`, picked at load). Parks and woods saturated green, cream background, roads with casings, dashed brown trails (`path`/`track`, from z11), peaks as dots with name and altitude. It replaces the hosted `liberty`/`dark` styles and the blank-style fallback: the style needs no fetch, so offline only leaves tiles missing (the "Basemap unavailable" caption still shows).
+- **Contours:** `maplibre-contour` (new dependency, 0.1.1) builds contour vector tiles in the webview from the Terrarium DEM (main thread, `worker: false`; a worker needs its own Vite bundling). Intervals scale with zoom (`CONTOUR_THRESHOLDS`: 500 m up to z10, then 100/500, 50/200, 20/100, 10/50 m from z15), majors labelled. Off by default behind a "Contours" checkbox in Layers, next to Hillshade; the layers sit under the first label layer and the route stays on top. Errors from the `terrain` and `contours` sources are ignored.
+- **Dark:** same hierarchy in a dark green-grey palette, with its own muted altitude ramp for the 3D tint.
