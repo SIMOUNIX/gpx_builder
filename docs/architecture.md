@@ -783,6 +783,6 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 
 **Hillshade layer (2026-11-15, pending user review).**
 
-- **Control:** the interactive map has a `Layers` icon button (top-right, `aria-label="Layers"`) opening a popover (shadcn `popover` over the installed `radix-ui`) with a labelled "Hillshade" checkbox. Off by default, not saved; the thumbnail map has neither control nor layer.
+- **Control:** the interactive map has a `Layers` icon button (`aria-label="Layers"`, first in the bottom-right zoom stack; top-right is taken by Settings on home and Close on the expanded map) opening a popover (shadcn `popover` over the installed `radix-ui`) with a labelled "Hillshade" checkbox. Off by default, not saved; the thumbnail map has neither control nor layer.
 - **Layer:** an AWS Terrarium `raster-dem` source (no key) and a `hillshade` layer are added on every style load, hidden until toggled (hidden layers fetch no tiles), inserted before the style's first label (`symbol`) layer so labels stay readable. The route layer is added after, so it stays on top.
 - **Failure:** errors from the `terrain` source are ignored (no offline banner, no blank-style fallback); the shading just doesn't appear.

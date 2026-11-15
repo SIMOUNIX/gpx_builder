@@ -202,32 +202,30 @@ export function MapView({
         </div>
       )}
       {interactive && (
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              className="bg-background absolute top-2.5 right-2.5"
-              aria-label="Layers"
-            >
-              <Layers />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={hillshade}
-                onChange={(e) => setHillshade(e.target.checked)}
-              />
-              Hillshade
-            </label>
-          </PopoverContent>
-        </Popover>
-      )}
-      {interactive && (
         // bottom-10 clears the compact attribution control.
         <div className="bg-background absolute right-2.5 bottom-10 flex flex-col divide-y overflow-hidden rounded-md border shadow-xs">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="rounded-none"
+                aria-label="Layers"
+              >
+                <Layers />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent side="left" className="w-auto">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={hillshade}
+                  onChange={(e) => setHillshade(e.target.checked)}
+                />
+                Hillshade
+              </label>
+            </PopoverContent>
+          </Popover>
           <Button
             variant="ghost"
             size="icon-sm"
