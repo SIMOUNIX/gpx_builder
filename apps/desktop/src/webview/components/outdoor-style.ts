@@ -28,8 +28,6 @@ const LIGHT = {
   boundary: "#9b8f80",
   text: "#3b3a36",
   halo: "#f4efe4",
-  // Altitude tint in 3D: fixed 0-3000 m, no red or blue (the route's slope colours).
-  relief: [0, "#d7e3c6", 500, "#e6e3c8", 1500, "#e4dccf", 3000, "#f4f2ef"],
 };
 
 const DARK: typeof LIGHT = {
@@ -54,10 +52,9 @@ const DARK: typeof LIGHT = {
   boundary: "#7f8a84",
   text: "#dcd9cf",
   halo: "#1c2420",
-  relief: [0, "#2b3a30", 1000, "#3a4238", 2000, "#4a4a44", 3000, "#6a6a66"],
 };
 
-export const palette = (dark: boolean) => (dark ? DARK : LIGHT);
+const palette = (dark: boolean) => (dark ? DARK : LIGHT);
 
 // Zoom -> [minor, major] metres between contour lines; a zoom without an entry uses the next lower one.
 // ponytail: [1000, 1000] below z11 means one level only, since every line is a major.
@@ -85,7 +82,8 @@ const label = [
   ["get", "name"],
 ] as ExpressionSpecification;
 
-export function outdoorStyle(dark: boolean): StyleSpecification {
+/** `full` = the interactive map; the thumbnail drops labels, buildings, trails, minor roads and boundaries. */
+export function outdoorStyle(dark: boolean, full = true): StyleSpecification {
   const c = palette(dark);
   const fill = (
     id: string,
@@ -162,7 +160,7 @@ export function outdoorStyle(dark: boolean): StyleSpecification {
       },
     }) as LayerSpecification;
 
-  return {
+  const style: StyleSpecification = {
     version: 8,
     glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
     sources: {
@@ -304,6 +302,20 @@ export function outdoorStyle(dark: boolean): StyleSpecification {
         { "text-font": ["Noto Sans Bold"] },
       ),
     ],
+  };
+  if (full) return style;
+  // Thumbnail: no symbols (so no glyph fetches or label collision) and none of the fine detail.
+  const skip = new Set([
+    "building",
+    "trail",
+    "boundary",
+    "road-minor",
+    "road-minor-casing",
+    "landuse-town",
+  ]);
+  return {
+    ...style,
+    layers: style.layers.filter((l) => l.type !== "symbol" && !skip.has(l.id)),
   };
 }
 

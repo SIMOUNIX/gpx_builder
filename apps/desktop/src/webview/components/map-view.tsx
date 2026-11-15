@@ -24,7 +24,6 @@ import {
   CONTOUR_THRESHOLDS,
   contourLayers,
   outdoorStyle,
-  palette,
 } from "./outdoor-style";
 import { PlaceSearch } from "./place-search";
 import { BANDS } from "./profile-geo";
@@ -39,10 +38,19 @@ const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
 // AWS Terrain Tiles (Terrarium encoding, no key) feed the hillshade layer.
 const TERRAIN_URL =
   "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
+// Contour tiles are generated in a worker (maplibre-contour's default, inlined as a Blob URL: no Vite bundling).
+const dem = new contour.DemSource({
+  url: TERRAIN_URL,
+  encoding: "terrarium",
+  maxzoom: 15,
+});
+dem.setupMaplibre({ addProtocol });
+
+// The raster-dem source reads tiles through the contour library's shared protocol, so each DEM tile is downloaded and cached once for both.
 const TERRAIN: RasterDEMSourceSpecification = {
   type: "raster-dem",
   encoding: "terrarium",
-  tiles: [TERRAIN_URL],
+  tiles: [dem.sharedDemProtocolUrl],
   tileSize: 256,
   maxzoom: 15,
   attribution: "Terrain: AWS Terrain Tiles",
@@ -53,15 +61,6 @@ const EXAGGERATION = 1.5;
 
 // Camera before any route has loaded ([lng, lat]).
 const PARIS: [number, number] = [2.3522, 48.8566];
-
-// Contour tiles are generated in the webview from the same Terrarium DEM (on the main thread).
-// ponytail: `worker: true` would move this off the UI thread but needs its worker bundled by Vite.
-const dem = new contour.DemSource({
-  url: TERRAIN_URL,
-  encoding: "terrarium",
-  maxzoom: 15,
-});
-dem.setupMaplibre({ addProtocol });
 
 function draw(m: MapLibreMap, routes: MapRoute[]) {
   (m.getSource("routes") as GeoJSONSource).setData(routesToGeoJSON(routes));
@@ -103,7 +102,7 @@ export function MapView({
       container: el.current!,
       interactive,
       attributionControl: interactive ? { compact: true } : false,
-      style: outdoorStyle(dark()), // built in code: no style fetch, so a basemap outage only leaves tiles missing
+      style: outdoorStyle(dark(), interactive), // built in code: no style fetch, so a basemap outage only leaves tiles missing
       center: PARIS,
       zoom: 10,
     });
@@ -112,24 +111,6 @@ export function MapView({
         // Under the first label layer, so labels stay readable; the route is added after, so it stays on top.
         const labels = m.getStyle().layers.find((l) => l.type === "symbol")?.id;
         m.addSource("terrain", TERRAIN);
-        m.addLayer(
-          {
-            id: "relief",
-            type: "color-relief",
-            source: "terrain",
-            layout: { visibility: is3d.current ? "visible" : "none" },
-            paint: {
-              "color-relief-color": [
-                "interpolate",
-                ["linear"],
-                ["elevation"],
-                ...palette(dark()).relief,
-              ],
-              "color-relief-opacity": 0.15,
-            },
-          },
-          labels,
-        );
         m.addLayer(
           {
             id: "hillshade",
@@ -147,9 +128,10 @@ export function MapView({
               elevationKey: "ele",
               levelKey: "level",
               contourLayer: "contours",
+              overzoom: 1, // reuse a coarser DEM tile: fewer fetches, cheaper isolines
             }),
           ],
-          maxzoom: 15,
+          maxzoom: 14, // beyond this MapLibre overzooms the vector tiles
         });
         for (const l of contourLayers(dark(), contoured.current))
           m.addLayer(l, labels);
@@ -232,12 +214,6 @@ export function MapView({
     if (!m) return;
     // The terrain source only exists once the style has loaded; `style.load` applies terrain for 3D turned on earlier.
     const ready = !!m.getSource("terrain");
-    if (ready)
-      m.setLayoutProperty(
-        "relief",
-        "visibility",
-        terrain3d ? "visible" : "none",
-      );
     if (terrain3d) {
       if (ready)
         m.setTerrain({ source: "terrain", exaggeration: EXAGGERATION });
