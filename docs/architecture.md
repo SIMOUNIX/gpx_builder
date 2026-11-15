@@ -786,3 +786,8 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 - **Control:** the interactive map has a `Layers` icon button (`aria-label="Layers"`, first in the bottom-right zoom stack; top-right is taken by Settings on home and Close on the expanded map) opening a popover (shadcn `popover` over the installed `radix-ui`) with a labelled "Hillshade" checkbox. Off by default, not saved; the thumbnail map has neither control nor layer.
 - **Layer:** an AWS Terrarium `raster-dem` source (no key) and a `hillshade` layer are added on every style load, hidden until toggled (hidden layers fetch no tiles), inserted before the style's first label (`symbol`) layer so labels stay readable. The route layer is added after, so it stays on top.
 - **Failure:** errors from the `terrain` source are ignored (no offline banner, no blank-style fallback); the shading just doesn't appear.
+
+**3D terrain button (2026-11-15, pending user review).**
+
+- **Control:** a `3D` text button (`aria-label="3D terrain"`, `aria-pressed`, highlighted when on) at the bottom of the bottom-right zoom stack, interactive maps only. Off by default, not saved.
+- **Behaviour:** on = `setTerrain` on the shared `terrain` source with 1.5× exaggeration and an eased pitch of 60° (bearing untouched). Off = `setTerrain(null)` and pitch back to 0, bearing kept. A style load wipes terrain, so it is re-applied there when 3D is on. The route is a line layer, so MapLibre drapes it on the terrain and it stays visible.

@@ -47,6 +47,9 @@ const TERRAIN: RasterDEMSourceSpecification = {
   attribution: "Terrain: AWS Terrain Tiles",
 };
 
+const PITCH_3D = 60;
+const EXAGGERATION = 1.5;
+
 // Camera before any route has loaded ([lng, lat]).
 const PARIS: [number, number] = [2.3522, 48.8566];
 
@@ -91,6 +94,8 @@ export function MapView({
   const latest = useRef(routes); // read when a style (re)loads, which wipes the route layer
   const [hillshade, setHillshade] = useState(false); // off by default, not saved
   const shaded = useRef(hillshade); // read on style load, like `latest`
+  const [terrain3d, setTerrain3d] = useState(false); // off by default, not saved
+  const is3d = useRef(terrain3d); // read on style load, which wipes terrain
   const [offline, setOffline] = useState(false);
   const [limit, setLimit] = useState<"min" | "max" | null>(null); // zoom bound reached, disables a button
 
@@ -119,6 +124,8 @@ export function MapView({
           },
           labels,
         );
+        if (is3d.current)
+          m.setTerrain({ source: "terrain", exaggeration: EXAGGERATION });
       }
       m.addSource("routes", { type: "geojson", data: routesToGeoJSON([]) });
       m.addLayer({
@@ -178,6 +185,20 @@ export function MapView({
         hillshade ? "visible" : "none",
       );
   }, [hillshade]);
+
+  useEffect(() => {
+    is3d.current = terrain3d;
+    const m = map.current;
+    if (!m) return;
+    if (terrain3d) {
+      if (m.getSource("terrain"))
+        m.setTerrain({ source: "terrain", exaggeration: EXAGGERATION });
+      m.easeTo({ pitch: PITCH_3D });
+    } else {
+      m.setTerrain(null);
+      m.easeTo({ pitch: 0 }); // bearing is kept
+    }
+  }, [terrain3d]);
 
   useEffect(() => {
     latest.current = routes;
@@ -245,6 +266,16 @@ export function MapView({
             onClick={() => map.current?.zoomOut()}
           >
             <Minus />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className={cn("rounded-none text-xs", terrain3d && "bg-accent")}
+            aria-label="3D terrain"
+            aria-pressed={terrain3d}
+            onClick={() => setTerrain3d((v) => !v)}
+          >
+            3D
           </Button>
         </div>
       )}
