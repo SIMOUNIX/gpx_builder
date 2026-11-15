@@ -47,6 +47,20 @@ const TERRAIN: RasterDEMSourceSpecification = {
   attribution: "Terrain: AWS Terrain Tiles",
 };
 
+// Altitude tint shown in 3D (muted green to tan to pale grey; no red or blue, which are the slope colours). Fixed 0-3000 m, same everywhere.
+const RELIEF_COLORS: (number | string)[] = [
+  0,
+  "#9dbb94",
+  300,
+  "#c4cf9f",
+  1000,
+  "#d8c9a0",
+  2000,
+  "#cdbfae",
+  3000,
+  "#f2f2f0",
+];
+
 const PITCH_3D = 60;
 const EXAGGERATION = 1.5;
 
@@ -115,6 +129,24 @@ export function MapView({
         // Under the first label layer, so labels stay readable; the route is added after, so it stays on top.
         const labels = m.getStyle().layers.find((l) => l.type === "symbol")?.id;
         m.addSource("terrain", TERRAIN);
+        m.addLayer(
+          {
+            id: "relief",
+            type: "color-relief",
+            source: "terrain",
+            layout: { visibility: is3d.current ? "visible" : "none" },
+            paint: {
+              "color-relief-color": [
+                "interpolate",
+                ["linear"],
+                ["elevation"],
+                ...RELIEF_COLORS,
+              ],
+              "color-relief-opacity": 0.5,
+            },
+          },
+          labels,
+        );
         m.addLayer(
           {
             id: "hillshade",
@@ -192,6 +224,12 @@ export function MapView({
     if (!m) return;
     // The terrain source only exists once the style has loaded; `style.load` applies terrain for 3D turned on earlier.
     const ready = !!m.getSource("terrain");
+    if (ready)
+      m.setLayoutProperty(
+        "relief",
+        "visibility",
+        terrain3d ? "visible" : "none",
+      );
     if (terrain3d) {
       if (ready)
         m.setTerrain({ source: "terrain", exaggeration: EXAGGERATION });
