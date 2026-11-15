@@ -190,13 +190,15 @@ export function MapView({
     is3d.current = terrain3d;
     const m = map.current;
     if (!m) return;
+    // The terrain source only exists once the style has loaded; `style.load` applies terrain for 3D turned on earlier.
+    const ready = !!m.getSource("terrain");
     if (terrain3d) {
-      if (m.getSource("terrain"))
+      if (ready)
         m.setTerrain({ source: "terrain", exaggeration: EXAGGERATION });
       m.easeTo({ pitch: PITCH_3D });
     } else {
-      m.setTerrain(null);
-      m.easeTo({ pitch: 0 }); // bearing is kept
+      if (ready) m.setTerrain(null);
+      if (m.getPitch() !== 0) m.easeTo({ pitch: 0 }); // bearing is kept
     }
   }, [terrain3d]);
 
