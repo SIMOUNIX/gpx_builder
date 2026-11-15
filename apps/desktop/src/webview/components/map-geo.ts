@@ -31,14 +31,23 @@ export function routesToGeoJSON(routes: MapRoute[]) {
 
 /** [[west, south], [east, north]], or undefined when there is nothing to frame. */
 export function boundsOf(routes: MapRoute[]): [LngLat, LngLat] | undefined {
-  const all = routes.flatMap((r) => r.points);
-  if (all.length === 0) return undefined;
-  const lngs = all.map((p) => p[0]);
-  const lats = all.map((p) => p[1]);
-  return [
-    [Math.min(...lngs), Math.min(...lats)],
-    [Math.max(...lngs), Math.max(...lats)],
-  ];
+  let w = Infinity,
+    s = Infinity,
+    e = -Infinity,
+    n = -Infinity;
+  for (const r of routes)
+    for (const [lng, lat] of r.points) {
+      if (lng < w) w = lng;
+      if (lng > e) e = lng;
+      if (lat < s) s = lat;
+      if (lat > n) n = lat;
+    }
+  return w === Infinity
+    ? undefined
+    : [
+        [w, s],
+        [e, n],
+      ];
 }
 
 // Zoom by OSM `key=value` (GeocodeCandidate.kind): the scale at which that kind of place reads well.

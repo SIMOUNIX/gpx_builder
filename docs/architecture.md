@@ -508,7 +508,7 @@ Tolerances and thresholds live in one `rules.ts` table in `core`.
 
 ### 12.5 Basemap, weather, sun
 
-- **Basemap:** OpenFreeMap hosted vector tiles, online only. See [ADR 0001](adr/0001-online-basemap.md). Style `liberty` in light mode and OpenFreeMap's `dark` style in dark mode (there is no dark liberty), chosen when the map is created. Hillshade and 3D terrain from AWS Terrain Tiles (Terrarium). Never pull tiles from OSM's tile servers.
+- **Basemap:** OpenFreeMap hosted vector tiles, online only. See [ADR 0001](adr/0001-online-basemap.md). Our own outdoor style (light and dark palettes, chosen when the map is created; see the outdoor map style entry). Hillshade and 3D terrain from AWS Terrain Tiles (Terrarium). Never pull tiles from OSM's tile servers.
 - **Weather:** Open-Meteo, no key.
 - **Sun:** suncalc, computed in the trip's timezone (`Europe/Paris` for France, including the daylight-saving change).
 
@@ -788,3 +788,16 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 - **Control:** the interactive map has a `Layers` icon button (`aria-label="Layers"`, first in the bottom-right zoom stack; top-right is taken by Settings on home and Close on the expanded map) opening a popover (shadcn `popover` over the installed `radix-ui`) with a labelled "Hillshade" checkbox. Off by default, not saved; the thumbnail map has neither control nor layer.
 - **Layer:** an AWS Terrarium `raster-dem` source (no key) and a `hillshade` layer are added on every style load, hidden until toggled (hidden layers fetch no tiles), inserted before the style's first label (`symbol`) layer so labels stay readable. The route layer is added after, so it stays on top.
 - **Failure:** errors from the `terrain` source are ignored (no offline banner, no blank-style fallback); the shading just doesn't appear.
+
+**3D terrain button (2026-11-15, pending user review).**
+
+- **Control:** a `3D` text button (`aria-label="3D terrain"`, `aria-pressed`, highlighted when on) at the bottom of the bottom-right zoom stack, interactive maps only. Off by default, not saved.
+- **Behaviour:** on = `setTerrain` on the shared `terrain` source with 1.5× exaggeration and an eased pitch of 60° (bearing untouched). Off = `setTerrain(null)` and pitch back to 0, bearing kept. A style load wipes terrain, so it is re-applied there when 3D is on. The route is a line layer, so MapLibre drapes it on the terrain and it stays visible.
+- **Relief tint (removed):** a `color-relief` altitude tint was tried and dropped: at 50% it read like a colour filter, and even at 15% it cost a full-screen pass over the DEM. 3D relief comes from the terrain geometry, the contours and the Hillshade checkbox.
+
+**Outdoor map style (2026-11-15, pending user review).**
+
+- **Style:** `outdoor-style.ts` builds the whole basemap style in code (about 30 layers over the OpenMapTiles layers of OpenFreeMap's planet tiles; glyphs from OpenFreeMap, no sprite, so no icons). One layer list, two hex palettes (`LIGHT`, `DARK`, picked at load). Parks and woods saturated green, cream background, roads with casings, dashed brown pastel-brown trails (`path`/`track`, from z11), peaks as name + altitude labels only (named peaks; dots were removed, they piled up orphaned when labels collided). It replaces the hosted `liberty`/`dark` styles and the blank-style fallback: the style needs no fetch, so offline only leaves tiles missing (the "Basemap unavailable" caption still shows).
+- **Contours:** `maplibre-contour` (new dependency, 0.1.1) builds contour vector tiles in the webview from the Terrarium DEM, in the library's own worker (its default, inlined as a Blob URL, so no Vite bundling). The `terrain` raster-dem source reads tiles through the library's shared protocol (`dem.sharedDemProtocolUrl`) so each DEM tile is fetched once for both. `overzoom: 1` and a contour source `maxzoom` of 14 trade detail at the highest zooms for cheaper tiles. Intervals scale with zoom (`CONTOUR_THRESHOLDS`: 1000 m up to z10, then 200/1000, 100/400, 40/200, 20/100 m from z15; minors at 20% opacity. Doubled from the first table because steep alpine terrain became unreadable), majors labelled. Off by default behind a "Contours" checkbox in Layers, next to Hillshade; the layers sit under the first label layer and the route stays on top. Errors from the `terrain` and `contours` sources are ignored.
+- **Dark:** same hierarchy in a dark green-grey palette.
+- **Thumbnail:** the non-interactive map uses the same style without symbol layers, buildings, trails, minor roads and boundaries (no glyph fetches or label collision in a 240×144 box).
