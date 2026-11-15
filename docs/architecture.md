@@ -780,3 +780,9 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 - **Profile:** the area fill is a hard-stop linear gradient from `profileBands`, with a five-swatch legend under the chart. The map always shows every stage; the day selector only changes the chart.
 - **Map legend:** the interactive maps show the same five swatches (from `BANDS`) as a vertical card just left of the zoom buttons, always visible; the profile keeps its own horizontal legend.
 - **Missing elevation:** a stage with no usable elevation is drawn as one neutral line. A single point without elevation inside a stage is skipped and bridged by a chord (known shortcut).
+
+**Hillshade layer (2026-11-15, pending user review).**
+
+- **Control:** the interactive map has a `Layers` icon button (top-right, `aria-label="Layers"`) opening a popover (shadcn `popover` over the installed `radix-ui`) with a labelled "Hillshade" checkbox. Off by default, not saved; the thumbnail map has neither control nor layer.
+- **Layer:** an AWS Terrarium `raster-dem` source (no key) and a `hillshade` layer are added on every style load, hidden until toggled (hidden layers fetch no tiles), inserted before the style's first label (`symbol`) layer so labels stay readable. The route layer is added after, so it stays on top.
+- **Failure:** errors from the `terrain` source are ignored (no offline banner, no blank-style fallback); the shading just doesn't appear.

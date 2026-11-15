@@ -3,14 +3,20 @@ import {
   Map as MapLibreMap,
   Marker,
   setWorkerUrl,
+  type RasterDEMSourceSpecification,
   type StyleSpecification,
 } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { LngLat } from "@gpx-builder/core/browser";
-import { Minus, Plus } from "lucide-react";
+import { Layers, Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { boundsOf, flyTarget, routesToGeoJSON, type MapRoute } from "./map-geo";
 import { PlaceSearch } from "./place-search";
@@ -27,6 +33,18 @@ const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
 const BASEMAP = {
   light: "https://tiles.openfreemap.org/styles/liberty",
   dark: "https://tiles.openfreemap.org/styles/dark",
+};
+
+// AWS Terrain Tiles (Terrarium encoding, no key) feed the hillshade layer.
+const TERRAIN: RasterDEMSourceSpecification = {
+  type: "raster-dem",
+  encoding: "terrarium",
+  tiles: [
+    "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
+  ],
+  tileSize: 256,
+  maxzoom: 15,
+  attribution: "Terrain: AWS Terrain Tiles",
 };
 
 // Camera before any route has loaded ([lng, lat]).
@@ -71,6 +89,8 @@ export function MapView({
   const map = useRef<MapLibreMap | null>(null);
   const dot = useRef<Marker | null>(null);
   const latest = useRef(routes); // read when a style (re)loads, which wipes the route layer
+  const [hillshade, setHillshade] = useState(false); // off by default, not saved
+  const shaded = useRef(hillshade); // read on style load, like `latest`
   const [offline, setOffline] = useState(false);
   const [limit, setLimit] = useState<"min" | "max" | null>(null); // zoom bound reached, disables a button
 
@@ -86,6 +106,20 @@ export function MapView({
     let styled = false;
     m.on("style.load", () => {
       styled = true;
+      if (interactive) {
+        // Under the first label layer, so labels stay readable; the route is added after, so it stays on top.
+        const labels = m.getStyle().layers.find((l) => l.type === "symbol")?.id;
+        m.addSource("terrain", TERRAIN);
+        m.addLayer(
+          {
+            id: "hillshade",
+            type: "hillshade",
+            source: "terrain",
+            layout: { visibility: shaded.current ? "visible" : "none" },
+          },
+          labels,
+        );
+      }
       m.addSource("routes", { type: "geojson", data: routesToGeoJSON([]) });
       m.addLayer({
         id: "routes",
@@ -97,6 +131,7 @@ export function MapView({
       if (latest.current) draw(m, latest.current);
     });
     m.on("error", (e) => {
+      if ((e as { sourceId?: string }).sourceId === "terrain") return; // hillshade is optional: map and route keep working
       // Not outages: a 404 is an empty tile, and a style may name a sprite icon it doesn't ship.
       if ((e.error as { status?: number }).status === 404) return;
       if (/^Image ".*" could not be loaded/.test(e.error.message)) return;
@@ -134,6 +169,17 @@ export function MapView({
   }, [marker]);
 
   useEffect(() => {
+    shaded.current = hillshade;
+    const m = map.current;
+    if (m?.getLayer("hillshade"))
+      m.setLayoutProperty(
+        "hillshade",
+        "visibility",
+        hillshade ? "visible" : "none",
+      );
+  }, [hillshade]);
+
+  useEffect(() => {
     latest.current = routes;
     const m = map.current;
     // Before the style has loaded, its `style.load` handler draws `latest`.
@@ -154,6 +200,30 @@ export function MapView({
           {children}
           <PlaceSearch onPick={(c) => map.current?.flyTo(flyTarget(c))} />
         </div>
+      )}
+      {interactive && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="bg-background absolute top-2.5 right-2.5"
+              aria-label="Layers"
+            >
+              <Layers />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={hillshade}
+                onChange={(e) => setHillshade(e.target.checked)}
+              />
+              Hillshade
+            </label>
+          </PopoverContent>
+        </Popover>
       )}
       {interactive && (
         // bottom-10 clears the compact attribution control.
