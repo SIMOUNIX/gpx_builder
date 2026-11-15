@@ -1,4 +1,5 @@
 import { Check, Loader2, X } from "lucide-react";
+import { Streamdown } from "streamdown";
 import { Button } from "@/components/ui/button";
 import type { Line, Pending } from "../chat";
 
@@ -40,17 +41,15 @@ export function ChatMessages({
           >
             {toolIcon[l.state]} {l.name}
           </div>
-        ) : (
+        ) : l.role === "user" ? (
           <div
             key={l.key}
-            className={
-              l.role === "user"
-                ? "bg-secondary ml-auto max-w-[80%] rounded-2xl px-4 py-2"
-                : "max-w-[80%]"
-            }
+            className="bg-secondary ml-auto max-w-[80%] rounded-2xl px-4 py-2"
           >
             <p className="whitespace-pre-wrap">{l.text}</p>
           </div>
+        ) : (
+          <Streamdown key={l.key}>{l.text}</Streamdown>
         ),
       )}
       {thinking && (

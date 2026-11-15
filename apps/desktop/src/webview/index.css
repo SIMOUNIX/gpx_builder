@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "@fontsource-variable/source-serif-4";
 @import "@fontsource-variable/jetbrains-mono";
+@source "../../node_modules/streamdown/dist/*.js";
 
 /* Dark mode follows the OS. */
 @custom-variant dark (@media (prefers-color-scheme: dark));
