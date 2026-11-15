@@ -791,7 +791,7 @@ Gates on every change: `prettier --check`, `eslint`, `tsc --noEmit`, `bun test` 
 
 - **Control:** a `3D` text button (`aria-label="3D terrain"`, `aria-pressed`, highlighted when on) at the bottom of the bottom-right zoom stack, interactive maps only. Off by default, not saved.
 - **Behaviour:** on = `setTerrain` on the shared `terrain` source with 1.5× exaggeration and an eased pitch of 60° (bearing untouched). Off = `setTerrain(null)` and pitch back to 0, bearing kept. A style load wipes terrain, so it is re-applied there when 3D is on. The route is a line layer, so MapLibre drapes it on the terrain and it stays visible.
-- **Relief tint:** the terrain is geometry only and the vector basemap is flat-coloured, so 3D adds a `color-relief` layer on the same `terrain` source, visible only in 3D, at 50% opacity, under the first label layer (below hillshade, so both can show) and below the route. Fixed 0–3000 m ramp (soft green → tan → pale grey), no red or blue so the slope-coloured route stays readable. 3D does not touch hillshade. Switching 3D off hides the tint.
+- **Relief tint:** the terrain is geometry only and the vector basemap is flat-coloured, so 3D adds a `color-relief` layer on the same `terrain` source, visible only in 3D, at 15% opacity (50% read like a colour filter), under the first label layer (below hillshade, so both can show) and below the route. Fixed 0–3000 m ramp (pale green → cream → near-white, with a neutral dark-mode ramp), no red or blue so the slope-coloured route stays readable. 3D does not touch hillshade. Switching 3D off hides the tint.
 
 **Outdoor map style (2026-11-15, pending user review).**
 

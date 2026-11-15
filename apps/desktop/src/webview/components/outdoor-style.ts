@@ -29,18 +29,7 @@ const LIGHT = {
   text: "#3b3a36",
   halo: "#f4efe4",
   // Altitude tint in 3D: fixed 0-3000 m, no red or blue (the route's slope colours).
-  relief: [
-    0,
-    "#9dbb94",
-    300,
-    "#c4cf9f",
-    1000,
-    "#d8c9a0",
-    2000,
-    "#cdbfae",
-    3000,
-    "#f2f2f0",
-  ],
+  relief: [0, "#d7e3c6", 500, "#e6e3c8", 1500, "#e4dccf", 3000, "#f4f2ef"],
 };
 
 const DARK: typeof LIGHT = {
@@ -65,18 +54,7 @@ const DARK: typeof LIGHT = {
   boundary: "#7f8a84",
   text: "#dcd9cf",
   halo: "#1c2420",
-  relief: [
-    0,
-    "#2f4a38",
-    300,
-    "#3d5a42",
-    1000,
-    "#55604a",
-    2000,
-    "#6e6a5c",
-    3000,
-    "#9a9a94",
-  ],
+  relief: [0, "#2b3a30", 1000, "#3a4238", 2000, "#4a4a44", 3000, "#6a6a66"],
 };
 
 export const palette = (dark: boolean) => (dark ? DARK : LIGHT);

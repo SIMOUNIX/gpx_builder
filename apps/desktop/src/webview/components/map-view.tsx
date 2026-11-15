@@ -125,7 +125,7 @@ export function MapView({
                 ["elevation"],
                 ...palette(dark()).relief,
               ],
-              "color-relief-opacity": 0.5,
+              "color-relief-opacity": 0.15,
             },
           },
           labels,
