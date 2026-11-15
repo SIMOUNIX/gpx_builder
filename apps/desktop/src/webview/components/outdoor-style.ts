@@ -60,13 +60,13 @@ const DARK: typeof LIGHT = {
 export const palette = (dark: boolean) => (dark ? DARK : LIGHT);
 
 // Zoom -> [minor, major] metres between contour lines; a zoom without an entry uses the next lower one.
-// ponytail: [500, 500] below z11 means one level only, since every line is a major.
+// ponytail: [1000, 1000] below z11 means one level only, since every line is a major.
 export const CONTOUR_THRESHOLDS = {
-  0: [500, 500],
-  11: [100, 500],
-  12: [50, 200],
-  13: [20, 100],
-  15: [10, 50],
+  0: [1000, 1000],
+  11: [200, 1000],
+  12: [100, 400],
+  13: [40, 200],
+  15: [20, 100],
 };
 
 const SRC = "openmaptiles";
@@ -329,7 +329,7 @@ export const contourLayers = (
       },
     }) as LayerSpecification;
   return [
-    line("contours-minor", 0, 0.5, 0.35),
+    line("contours-minor", 0, 0.5, 0.2),
     line("contours-major", 1, 0.9, 0.8),
     // Lakes are flat in the DEM, so the algorithm draws noise rings along their edges: paint the water back over them.
     {
