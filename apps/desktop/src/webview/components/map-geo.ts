@@ -1,17 +1,19 @@
 import type { LngLat, Position3 } from "@gpx-builder/core/browser";
+import { BAND_COLORS, slopeSegments } from "./profile-geo";
 
 export type MapRoute = { id: string; points: LngLat[]; color?: string };
 
-// MapLibre paint colours can't use CSS variables or oklch, so hex it is.
+// Fallback for a route with no colour of its own. Hex: MapLibre can't read CSS variables or oklch.
 export const ROUTE_COLORS = ["#7fcfae", "#f0b58a", "#b9a3ee"];
 
-/** One map line per routed stage (`trips.route`), elevation dropped. */
-export const stageRoutes = (
+/** Each stage as lines coloured by slope band (`trips.route`). */
+export const slopeRoutes = (
   stages: { stageId: string; line: Position3[] }[],
 ): MapRoute[] =>
-  stages.map(({ stageId, line }) => ({
+  slopeSegments(stages).map(({ stageId, band, points }) => ({
     id: stageId,
-    points: line.map(([lng, lat]) => [lng, lat]),
+    points,
+    color: BAND_COLORS[band],
   }));
 
 export function routesToGeoJSON(routes: MapRoute[]) {

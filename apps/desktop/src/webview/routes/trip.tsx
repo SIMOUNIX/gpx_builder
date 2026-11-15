@@ -6,7 +6,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ChatMessages } from "@/components/chat-messages";
 import { ChatInput } from "@/components/chat-input";
 import { ExpandedMap } from "@/components/expanded-map";
-import { stageRoutes } from "@/components/map-geo";
+import { slopeRoutes } from "@/components/map-geo";
 import { MapView } from "@/components/map-view";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -32,7 +32,7 @@ export function TripView() {
   const { data: stages } = useQuery(trpc.trips.route.queryOptions({ tripId }));
   const { lines, pending, busy, error, send } = useTripChat(tripId);
   // Memoised: MapView re-fits the camera whenever `routes` changes identity, and chat streaming re-renders constantly.
-  const gpx = useMemo(() => stages && stageRoutes(stages), [stages]);
+  const gpx = useMemo(() => stages && slopeRoutes(stages), [stages]);
 
   // Home passes the first message in `?first=`: send it once, then clear the param.
   // Deferred so React StrictMode's dev-only unmount/remount (which makes useChat abort an

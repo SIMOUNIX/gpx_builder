@@ -8,7 +8,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
 import { useState } from "react";
 import { ChatInput } from "@/components/chat-input";
-import { stageRoutes } from "@/components/map-geo";
+import { slopeRoutes } from "@/components/map-geo";
 import { MapView } from "@/components/map-view";
 import { SearchInput } from "@/components/search-input";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ export function Home() {
     combine: (qs) =>
       qs.some((q) => q.isPending)
         ? undefined
-        : qs.flatMap((q) => stageRoutes(q.data ?? [])),
+        : qs.flatMap((q) => slopeRoutes(q.data ?? [])),
   });
   const create = useMutation(trpc.trips.create.mutationOptions());
   const start = async (text: string) => {

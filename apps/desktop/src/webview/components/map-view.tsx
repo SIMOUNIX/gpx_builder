@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { boundsOf, flyTarget, routesToGeoJSON, type MapRoute } from "./map-geo";
 import { PlaceSearch } from "./place-search";
+import { BANDS } from "./profile-geo";
 
 export type { MapRoute };
 
@@ -178,6 +179,20 @@ export function MapView({
             <Minus />
           </Button>
         </div>
+      )}
+      {interactive && (
+        // Left of the zoom buttons, same bottom edge.
+        <ul className="bg-background text-muted-foreground absolute right-12 bottom-10 space-y-1 rounded-md border p-2 text-xs shadow-xs">
+          {BANDS.map((b) => (
+            <li key={b.band} className="flex items-center gap-1.5">
+              <span
+                className="size-2.5 rounded-sm"
+                style={{ background: b.color }}
+              />
+              {b.label}
+            </li>
+          ))}
+        </ul>
       )}
       {interactive && offline && (
         <p className="caps text-muted-foreground pointer-events-none absolute inset-x-0 top-3 text-center">
