@@ -353,6 +353,15 @@ export const contourLayers = (
   return [
     line("contours-minor", 0, 0.5, 0.35),
     line("contours-major", 1, 0.9, 0.8),
+    // Lakes are flat in the DEM, so the algorithm draws noise rings along their edges: paint the water back over them.
+    {
+      id: "contours-water-mask",
+      type: "fill",
+      source: SRC,
+      "source-layer": "water",
+      layout,
+      paint: { "fill-color": c.water },
+    },
     {
       id: "contours-label",
       type: "symbol",

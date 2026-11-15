@@ -219,9 +219,11 @@ export function MapView({
   useEffect(() => {
     contoured.current = contours;
     const m = map.current;
-    for (const id of ["contours-minor", "contours-major", "contours-label"])
-      if (m?.getLayer(id))
-        m.setLayoutProperty(id, "visibility", contours ? "visible" : "none");
+    if (m?.getSource("contours"))
+      // exists once the style has loaded
+      for (const { id } of m.getStyle().layers)
+        if (id.startsWith("contours-"))
+          m.setLayoutProperty(id, "visibility", contours ? "visible" : "none");
   }, [contours]);
 
   useEffect(() => {
