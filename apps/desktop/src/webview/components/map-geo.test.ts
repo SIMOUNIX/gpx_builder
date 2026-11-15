@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { boundsOf, routesToGeoJSON, stageRoutes } from "./map-geo";
+import { boundsOf, flyTarget, routesToGeoJSON, stageRoutes } from "./map-geo";
 
 const routes = [
   {
@@ -44,4 +44,13 @@ test("stageRoutes makes one 2D line per stage", () => {
       ],
     },
   ]);
+});
+
+test("flyTarget zooms by kind, with a default for unknown kinds", () => {
+  const lngLat: [number, number] = [6.87, 45.92];
+  expect(flyTarget({ lngLat, kind: "place=city" })).toEqual({
+    center: lngLat,
+    zoom: 11,
+  });
+  expect(flyTarget({ lngLat, kind: "shop=bakery" }).zoom).toBe(12);
 });

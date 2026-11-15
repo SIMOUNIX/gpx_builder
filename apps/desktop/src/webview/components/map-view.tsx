@@ -9,10 +9,11 @@ import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { LngLat } from "@gpx-builder/core/browser";
 import { Minus, Plus } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { boundsOf, routesToGeoJSON, type MapRoute } from "./map-geo";
+import { boundsOf, flyTarget, routesToGeoJSON, type MapRoute } from "./map-geo";
+import { PlaceSearch } from "./place-search";
 
 export type { MapRoute };
 
@@ -56,11 +57,14 @@ export function MapView({
   className,
   interactive = true,
   marker,
+  children,
 }: {
   routes: MapRoute[] | undefined;
   className?: string;
   interactive?: boolean;
   marker?: LngLat | null;
+  /** Stacked above the place search, top-left (interactive maps only). */
+  children?: ReactNode;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
@@ -143,6 +147,12 @@ export function MapView({
         <p className="caps text-muted-foreground pointer-events-none absolute inset-0 grid place-items-center">
           No route yet
         </p>
+      )}
+      {interactive && (
+        <div className="absolute top-2.5 left-2.5 flex w-72 flex-col gap-2">
+          {children}
+          <PlaceSearch onPick={(c) => map.current?.flyTo(flyTarget(c))} />
+        </div>
       )}
       {interactive && (
         // bottom-10 clears the compact attribution control.

@@ -30,6 +30,7 @@ packages/core/src/server/
     base.ts             shared: initTRPC, AppRouterDeps, input schema, store-error → tRPC error
     file-router.ts      trips.list / get / create / route / export
     chat-router.ts      chats.messages (the transcript)
+    place-router.ts     places.search (geocoder for the map's search box)
 apps/desktop/src/backend/
   server.ts             Bun.serve + the gate + dispatch by path
   api-chat.ts           /api/chat: one agent turn, streamed
@@ -38,11 +39,11 @@ apps/desktop/src/backend/
   server.test.ts        tests
 ```
 
-This follows the [tRPC Bun example](https://github.com/trpc/trpc/tree/main/examples/bun): `Bun.serve` calls `fetchRequestHandler`, and an `appRouter` is built from sub-routers. Ours merges two with `t.mergeRouters`, so paths stay flat (`trips.list`, not `core.trips.list`).
+This follows the [tRPC Bun example](https://github.com/trpc/trpc/tree/main/examples/bun): `Bun.serve` calls `fetchRequestHandler`, and an `appRouter` is built from sub-routers. Ours merges three with `t.mergeRouters`, so paths stay flat (`trips.list`, not `core.trips.list`).
 
 ## Why the router lives in `core`
 
-`AppRouter` is a **type** the webview uses to get end-to-end types. If the router lived in the backend, the webview would have to import backend code. So the router is in `core`, and it receives its dependencies (`trips`, `chats` ports) as arguments (`createAppRouter({ trips, chats })`). `core` imports nothing from the other packages; the backend injects the real disk stores. The webview writes `import type { AppRouter } from "@gpx-builder/core/server/app-router"`, and ESLint allows that one import and nothing else from `core/server`.
+`AppRouter` is a **type** the webview uses to get end-to-end types. If the router lived in the backend, the webview would have to import backend code. So the router is in `core`, and it receives its dependencies (`trips`, `chats`, `geocode` ports) as arguments (`createAppRouter({ trips, chats, geocode })`). `core` imports nothing from the other packages; the backend injects the real disk stores. The webview writes `import type { AppRouter } from "@gpx-builder/core/server/app-router"`, and ESLint allows that one import and nothing else from `core/server`.
 
 ## 1. The gate (every request, `server.ts`)
 
@@ -67,6 +68,7 @@ Responses get `Access-Control-Allow-Origin` set to the one allowed origin, never
 | `trips.route`    | query    | `{stageId, line}[]` for each routed stage                                              |
 | `trips.export`   | mutation | writes the GPX files, returns the paths (`PRECONDITION_FAILED` if a stage is unrouted) |
 | `chats.messages` | query    | the stored transcript (`[]` before the first message)                                  |
+| `places.search`  | query    | `{query}` → geocoder candidates; a geocoder failure is a tRPC error. Saves nothing     |
 
 Each procedure calls a store **port** and returns plain JSON. Store errors become tRPC errors in `routers/base.ts` (`not-found` → `NOT_FOUND`).
 

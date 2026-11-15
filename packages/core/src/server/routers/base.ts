@@ -1,12 +1,13 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { TripId, type StoreError } from "../../browser/index";
-import type { ChatStorePort, TripStorePort } from "../ports";
+import type { ChatStorePort, GeocodePort, TripStorePort } from "../ports";
 
 /** What the routers need. Injected by the composition root; the webview only imports the `AppRouter` type. */
 export type AppRouterDeps = {
   trips: TripStorePort;
   chats: ChatStorePort;
+  geocode: GeocodePort;
   now?: () => Date;
 };
 
