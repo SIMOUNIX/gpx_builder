@@ -1,13 +1,62 @@
-import { Check, Loader2, X } from "lucide-react";
+import {
+  CalendarDays,
+  ClipboardList,
+  Download,
+  MapPin,
+  Route,
+  Sparkles,
+} from "lucide-react";
 import { Streamdown } from "streamdown";
 import { Button } from "@/components/ui/button";
+import {
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceIcon,
+  TraceLine,
+  TraceTitle,
+} from "@/components/ui/trace";
 import type { Line, Pending } from "../chat";
+import { traceOf } from "../trace";
 
-const toolIcon = {
-  running: <Loader2 className="size-3 animate-spin" />,
-  ok: <Check className="size-3" />,
-  failed: <X className="text-destructive size-3" />,
-};
+const icons = { MapPin, Route, ClipboardList, CalendarDays, Download };
+
+function ToolTrace({ line }: { line: Extract<Line, { kind: "tool" }> }) {
+  const row = traceOf(line);
+  if (!row) return null;
+  const Icon = icons[row.icon];
+  const status =
+    line.state === "ok"
+      ? undefined
+      : line.state === "failed"
+        ? "error"
+        : "running";
+  const content = (
+    <TraceLine status={status}>
+      <TraceIcon>
+        <Icon />
+      </TraceIcon>
+      <TraceTitle>{row.title}</TraceTitle>
+    </TraceLine>
+  );
+  return (
+    <Trace>
+      {row.detail.length === 0 ? (
+        content
+      ) : (
+        <TraceCollapsible>
+          <TraceCollapsibleTrigger>{content}</TraceCollapsibleTrigger>
+          <TraceCollapsibleContent>
+            {row.detail.map((d, i) => (
+              <p key={i}>{d}</p>
+            ))}
+          </TraceCollapsibleContent>
+        </TraceCollapsible>
+      )}
+    </Trace>
+  );
+}
 
 export function ChatMessages({
   lines,
@@ -35,12 +84,7 @@ export function ChatMessages({
     <div className="mx-auto flex max-w-4xl flex-col gap-4 p-6 pb-44">
       {lines.map((l) =>
         l.kind === "tool" ? (
-          <div
-            key={l.key}
-            className="text-muted-foreground flex items-center gap-2 text-xs"
-          >
-            {toolIcon[l.state]} {l.name}
-          </div>
+          <ToolTrace key={l.key} line={l} />
         ) : l.role === "user" ? (
           <div
             key={l.key}
@@ -53,9 +97,14 @@ export function ChatMessages({
         ),
       )}
       {thinking && (
-        <div className="text-muted-foreground flex items-center gap-2 text-xs">
-          {toolIcon.running} Thinking…
-        </div>
+        <Trace>
+          <TraceLine status="running">
+            <TraceIcon>
+              <Sparkles />
+            </TraceIcon>
+            <TraceTitle>Thinking…</TraceTitle>
+          </TraceLine>
+        </Trace>
       )}
       {pending?.tool === "export_trip" && <p>Export the GPX files?</p>}
       {choices.length > 0 && (
