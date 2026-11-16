@@ -101,3 +101,42 @@ test("failure shows the complete error or every issue", () => {
 test("tools without a row return undefined", () => {
   expect(traceOf(tool("mystery", "ok"))).toBeUndefined();
 });
+
+test("every tool has a running, done and failed title", () => {
+  const input = { query: "Ubaye", stageId: "stage_3_x" };
+  const output = { stages: [{}], candidates: [], missing: [] };
+  const titles = (name: string) =>
+    (["running", "ok", "failed"] as const).map(
+      (state) => traceOf(tool(name, state, input, output))?.title,
+    );
+  expect(titles("find_place")).toEqual([
+    "Finding Ubaye…",
+    "Found Ubaye",
+    "Failed to find Ubaye",
+  ]);
+  expect(titles("route")).toEqual([
+    "Routing stage 3…",
+    "Routed stage 3",
+    "Failed to route stage 3",
+  ]);
+  expect(titles("submit_brief")).toEqual([
+    "Saving brief…",
+    "Saved brief",
+    "Failed to save brief",
+  ]);
+  expect(titles("submit_itinerary")).toEqual([
+    "Planning stages…",
+    "Planned 1 stages",
+    "Failed to plan stages",
+  ]);
+  expect(titles("export_trip")).toEqual([
+    "Exporting…",
+    "Exported GPX",
+    "Failed to export",
+  ]);
+});
+
+test("an interrupted or partial call has no detail and no 'undefined'", () => {
+  const row = traceOf(tool("find_place", "failed"));
+  expect(row).toMatchObject({ title: "Failed to find ", detail: [] });
+});
