@@ -9,3 +9,4 @@ export * from "./ids";
 export * from "./phase";
 export * from "./result";
 export * from "./trip";
+export * from "./walking-time";

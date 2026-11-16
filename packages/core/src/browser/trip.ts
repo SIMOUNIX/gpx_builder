@@ -29,7 +29,13 @@ export const Stage = z.object({
   routeId: RouteId.optional(),
   /** Written by the trip service when the stage is routed. */
   stats: z
-    .object({ km: z.number(), gainM: z.number(), lossM: z.number() })
+    .object({
+      km: z.number(),
+      gainM: z.number(),
+      lossM: z.number(),
+      /** DIN 33466 estimate; absent on stages routed before it existed. */
+      walkingMin: z.number().optional(),
+    })
     .optional(),
   /** One per waypoint, in the order [from, ...via, to]: how far the router moved it onto a path. */
   snapDistancesM: z.array(z.number()).optional(),

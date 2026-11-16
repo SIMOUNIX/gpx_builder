@@ -43,7 +43,7 @@ test("sets route id, stats from our own geometry, and snap distances on one stag
   const out = applyRoutedStage(trip, s1, routed, routeId);
   expect(out.stages[0]).toMatchObject({
     routeId,
-    stats: { km: 1.11, gainM: 10, lossM: 0 },
+    stats: { km: 1.11, gainM: 10, lossM: 0, walkingMin: 18 },
     snapDistancesM: [3, 120],
   });
   expect(out.stages[1]).toEqual(trip.stages[1]!);
