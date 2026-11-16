@@ -11,13 +11,16 @@ export type TraceRow = {
 
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v && typeof v === "object" ? (v as Obj) : {});
+const text = (v: unknown) => (typeof v === "string" ? v : "");
 const list = (v: unknown): Obj[] => (Array.isArray(v) ? v.map(obj) : []);
 
 /** The complete failure message: the `error` string, or every `path: message` issue. */
 const failure = (output: unknown): string[] => {
   const { error, issues } = obj(output);
   if (typeof error === "string") return [error];
-  return list(issues).map((i) => `${i.path}: ${i.message}`);
+  return list(issues).map((i) =>
+    i.path ? `${i.path}: ${i.message}` : `${i.message}`,
+  );
 };
 
 type Spec = {
@@ -34,9 +37,9 @@ const stageNo = (input: Obj) =>
 const SPECS: Record<string, Spec> = {
   find_place: {
     icon: "MapPin",
-    running: (i) => `Finding ${i.query}…`,
-    done: (i) => `Found ${i.query}`,
-    failed: (i) => `Failed to find ${i.query}`,
+    running: (i) => `Finding ${text(i.query)}…`,
+    done: (i) => `Found ${text(i.query)}`,
+    failed: (i) => `Failed to find ${text(i.query)}`,
     detail: (o) => list(o.candidates).map((c) => `${c.label} (${c.kind})`),
   },
   route: {
@@ -52,9 +55,7 @@ const SPECS: Record<string, Spec> = {
     done: () => "Saved brief",
     failed: () => "Failed to save brief",
     detail: (o) => [
-      o.complete
-        ? "Complete"
-        : `Missing: ${(o.missing as string[]).join(", ")}`,
+      o.complete ? "Complete" : `Missing: ${[o.missing].flat().join(", ")}`,
     ],
   },
   submit_itinerary: {
