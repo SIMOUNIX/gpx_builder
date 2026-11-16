@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 export function SearchInput(props: ComponentProps<"input">) {
   return (
     <div className="relative">
-      <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-3 z-10 size-4" />
+      <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 z-10 size-4" />
       <Input
         {...props}
         className="bg-card/80 rounded-full pl-9 backdrop-blur"
