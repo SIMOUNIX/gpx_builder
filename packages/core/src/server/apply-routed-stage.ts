@@ -1,5 +1,6 @@
 import { elevationGain } from "../browser/elevation";
 import { lineLengthM } from "../browser/geo";
+import { walkingTimeMin } from "../browser/walking-time";
 import type { RouteId, StageId } from "../browser/ids";
 import type { Trip } from "../browser/trip";
 import type { RoutedStage } from "./ports";
@@ -19,10 +20,12 @@ export function applyRoutedStage(
     throw new Error(`unknown stage ${stageId}`);
   }
   const { gainM, lossM } = elevationGain(routed.line);
+  const km = Math.round(lineLengthM(routed.line) / 10) / 100; // 2 decimals
   const stats = {
-    km: Math.round(lineLengthM(routed.line) / 10) / 100, // 2 decimals
+    km,
     gainM: Math.round(gainM),
     lossM: Math.round(lossM),
+    walkingMin: walkingTimeMin(km, gainM, lossM),
   };
   return {
     ...trip,

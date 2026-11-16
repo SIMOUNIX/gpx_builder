@@ -37,7 +37,7 @@ const trip = (brief: BriefDraft, withStage = false): Trip =>
             via: [],
             overnight: "camp",
             routeId: RouteId.parse("route_0123456789abcdef"),
-            stats: { km: 21.3, gainM: 640, lossM: 610 },
+            stats: { km: 21.3, gainM: 640, lossM: 610, walkingMin: 420 },
           },
         ]
       : [],
@@ -95,6 +95,6 @@ test("digest shows stages with labels, ids and stats", () => {
     "travel: from Paris (geo:ign:paris) by train, max 2 h one way",
   );
   expect(d).toContain(
-    "stage_1_aaaaaaaa: Fontainebleau-Avon (wp_aaaaaaaa) -> Camp spot (wp_bbbbbbbb), 21.3 km, D+ 640 m, D- 610 m, overnight: camp, route: route_0123456789abcdef",
+    "stage_1_aaaaaaaa: Fontainebleau-Avon (wp_aaaaaaaa) -> Camp spot (wp_bbbbbbbb), 21.3 km, D+ 640 m, D- 610 m, walking time 7 h 00 min, overnight: camp, route: route_0123456789abcdef",
   );
 });

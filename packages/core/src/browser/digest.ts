@@ -53,7 +53,10 @@ export function renderDigest(trip: Trip): string {
   if (trip.stages.length === 0) lines.push("- none");
   for (const s of trip.stages) {
     const stats = s.stats
-      ? `${s.stats.km} km, D+ ${s.stats.gainM} m, D- ${s.stats.lossM} m`
+      ? `${s.stats.km} km, D+ ${s.stats.gainM} m, D- ${s.stats.lossM} m` +
+        (s.stats.walkingMin === undefined
+          ? ""
+          : `, walking time ${Math.floor(s.stats.walkingMin / 60)} h ${String(s.stats.walkingMin % 60).padStart(2, "0")} min`)
       : "not routed";
     lines.push(
       `- ${s.id}: ${wp(s.from)} -> ${wp(s.to)}, ${stats}, overnight: ${s.overnight ?? "none"}, route: ${s.routeId ?? "none"}`,
