@@ -58,18 +58,18 @@ export function AppSidebar({ activeTripId }: { activeTripId: string }) {
             {shown.map((t) => (
               <SidebarMenuItem key={t.tripId}>
                 <SidebarMenuButton
-                  asChild
+                  render={
+                    <Link to="/trips/$tripId" params={{ tripId: t.tripId }} />
+                  }
                   isActive={t.tripId === activeTripId}
                   className="h-auto py-2"
                 >
-                  <Link to="/trips/$tripId" params={{ tripId: t.tripId }}>
-                    <div className="min-w-0">
-                      <div className="truncate">{t.name}</div>
-                      <div className="caps text-muted-foreground truncate">
-                        {tripStatus(t)} · {timeAgo(t.updatedAt)}
-                      </div>
+                  <div className="min-w-0">
+                    <div className="truncate">{t.name}</div>
+                    <div className="caps text-muted-foreground truncate">
+                      {tripStatus(t)} · {timeAgo(t.updatedAt)}
                     </div>
-                  </Link>
+                  </div>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}

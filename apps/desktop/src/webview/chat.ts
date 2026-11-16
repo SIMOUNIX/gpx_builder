@@ -20,6 +20,8 @@ export type Line =
       kind: "tool";
       name: string;
       state: "running" | "ok" | "failed";
+      input: unknown;
+      output: unknown;
     };
 
 type ToolState = Extract<Line, { kind: "tool" }>["state"];
@@ -108,7 +110,10 @@ export function historyLines(chat: ChatMessage[]): Line[] {
             key,
             kind: "tool",
             name: p.name,
-            state: done ? okState(results.get(p.toolCallId)) : "running",
+            // A call with no result was interrupted: it will never finish.
+            state: done ? okState(results.get(p.toolCallId)) : "failed",
+            input: p.input,
+            output: results.get(p.toolCallId),
           },
         ];
       }
@@ -141,14 +146,18 @@ export function liveLines(messages: ChatUIMessage[]): Line[] {
         return [
           { key, kind: "text", role: "assistant", text: question(p.input) },
         ];
+      const tool = {
+        key,
+        kind: "tool",
+        name: p.toolName,
+        input: p.input,
+      } as const;
       if (p.state === "output-error")
-        return [{ key, kind: "tool", name: p.toolName, state: "failed" }];
+        return [{ ...tool, state: "failed", output: { error: p.errorText } }];
       if (p.state === "output-available")
-        return [
-          { key, kind: "tool", name: p.toolName, state: okState(p.output) },
-        ];
+        return [{ ...tool, state: okState(p.output), output: p.output }];
       if (CLIENT_SIDE.includes(p.toolName)) return []; // the pending prompt covers it
-      return [{ key, kind: "tool", name: p.toolName, state: "running" }];
+      return [{ ...tool, state: "running", output: undefined }];
     }),
   );
 }

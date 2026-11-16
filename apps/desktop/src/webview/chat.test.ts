@@ -112,7 +112,7 @@ test("historyLines: text, tool state, ask_user as question and answer", () => {
     "user:Alps",
     "find_place:ok",
     "route:failed",
-    "submit_brief:running",
+    "submit_brief:failed", // no result: interrupted
   ]);
 });
 
@@ -178,4 +178,26 @@ test("liveLines maps text and dynamic tool parts", () => {
     "route:failed",
     "submit_itinerary:running",
   ]);
+});
+
+test("lines carry the tool input and output", () => {
+  const call = msg("a5", "assistant", [
+    {
+      type: "tool-call",
+      toolCallId: "g5",
+      name: "find_place",
+      input: { query: "Ubaye" },
+    },
+  ]);
+  const res = msg("t5", "tool", [
+    {
+      type: "tool-result",
+      toolCallId: "g5",
+      output: { ok: true, candidates: [] },
+    },
+  ]);
+  expect(historyLines([call, res])[0]).toMatchObject({
+    input: { query: "Ubaye" },
+    output: { ok: true, candidates: [] },
+  });
 });
