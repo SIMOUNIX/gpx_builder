@@ -10,4 +10,4 @@ Concretely: first investigate and plan rigorously (asking the user design questi
 
 # Rules
 
-Always run linter and prettier. Never commit on your own.
+Always run linter and prettier.
