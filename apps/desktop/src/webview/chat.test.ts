@@ -6,7 +6,9 @@ import {
   liveLines,
   pendingFromChat,
   pendingFromLive,
+  turnBlocks,
   type ChatUIMessage,
+  type Line,
 } from "./chat";
 
 const tripId = TripId.parse("trip_3b6f0c2a-3a52-4b8e-9d3f-1b6f0c2a7e11");
@@ -200,4 +202,107 @@ test("lines carry the tool input and output", () => {
     input: { query: "Ubaye" },
     output: { ok: true, candidates: [] },
   });
+});
+
+const say = (key: string, role: "user" | "assistant", text = key): Line => ({
+  key,
+  kind: "text",
+  role,
+  text,
+});
+const step = (
+  key: string,
+  state: "running" | "ok" | "failed",
+  query = key,
+): Line => ({
+  key,
+  kind: "tool",
+  name: "find_place",
+  state,
+  input: { query },
+  output: undefined,
+});
+const summaries = (lines: Line[], busy: boolean) =>
+  turnBlocks(lines, busy).map((b) =>
+    b.kind === "summary"
+      ? { title: b.title, running: b.running, items: b.items.map((i) => i.key) }
+      : b.line.key,
+  );
+
+test("a finished turn folds steps and in-between text, keeping the final answer outside", () => {
+  const lines = [
+    say("u", "user"),
+    step("s1", "ok"),
+    say("mid", "assistant"),
+    step("s2", "failed"),
+    say("final", "assistant"),
+  ];
+  expect(summaries(lines, false)).toEqual([
+    "u",
+    { title: "2 steps, 1 failed", running: false, items: ["s1", "mid", "s2"] },
+    "final",
+  ]);
+});
+
+test("one step is singular", () => {
+  expect(
+    summaries(
+      [say("u", "user"), step("s1", "ok"), say("f", "assistant")],
+      false,
+    )[1],
+  ).toMatchObject({ title: "1 step" });
+});
+
+test("a running turn is open and titled with the latest running step", () => {
+  const lines = [
+    say("u", "user"),
+    step("s1", "running", "Aosta"),
+    step("s2", "running", "Chamonix"),
+  ];
+  expect(summaries(lines, true)[1]).toEqual({
+    title: "Finding Chamonix…",
+    running: true,
+    items: ["s1", "s2"],
+  });
+});
+
+test("a running turn with no active step is Thinking", () => {
+  expect(
+    summaries([say("u", "user"), step("s1", "ok")], true)[1],
+  ).toMatchObject({ title: "Thinking", running: true });
+  expect(summaries([say("u", "user")], true)[1]).toEqual({
+    title: "Thinking",
+    running: true,
+    items: [],
+  });
+});
+
+test("a turn without steps shows no summary once text arrives", () => {
+  expect(summaries([say("u", "user"), say("a", "assistant")], true)).toEqual([
+    "u",
+    "a",
+  ]);
+  expect(summaries([say("u", "user"), say("a", "assistant")], false)).toEqual([
+    "u",
+    "a",
+  ]);
+});
+
+test("each turn gets its own summary", () => {
+  const lines = [
+    say("u1", "user"),
+    step("s1", "ok"),
+    say("a1", "assistant"),
+    say("u2", "user"),
+    step("s2", "ok"),
+    say("a2", "assistant"),
+  ];
+  expect(summaries(lines, false).map((b) => typeof b)).toEqual([
+    "string",
+    "object",
+    "string",
+    "string",
+    "object",
+    "string",
+  ]);
 });

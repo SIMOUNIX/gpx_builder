@@ -4,8 +4,8 @@ import {
   Download,
   MapPin,
   Route,
-  Sparkles,
 } from "lucide-react";
+import { useState } from "react";
 import { Streamdown } from "streamdown";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ import {
   TraceTitle,
 } from "@/components/ui/trace";
 import type { Line, Pending } from "../chat";
+import { turnBlocks } from "../chat";
 import { traceOf } from "../trace";
 
 const icons = { MapPin, Route, ClipboardList, CalendarDays, Download };
@@ -58,6 +59,44 @@ function ToolTrace({ line }: { line: Extract<Line, { kind: "tool" }> }) {
   );
 }
 
+function LineView({ line }: { line: Line }) {
+  if (line.kind === "tool") return <ToolTrace line={line} />;
+  if (line.role === "user")
+    return (
+      <div className="bg-secondary ml-auto max-w-[80%] rounded-2xl px-4 py-2">
+        <p className="whitespace-pre-wrap">{line.text}</p>
+      </div>
+    );
+  return <Streamdown>{line.text}</Streamdown>;
+}
+
+/** Open while the turn runs, closed once it ends; a click always wins (`open ?? running`). */
+function TurnSummary({
+  title,
+  running,
+  children,
+}: {
+  title: string;
+  running: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState<boolean>();
+  return (
+    <Trace>
+      <TraceCollapsible open={open ?? running} onOpenChange={setOpen}>
+        <TraceCollapsibleTrigger>
+          <TraceLine status={running ? "running" : undefined}>
+            <TraceTitle>{title}</TraceTitle>
+          </TraceLine>
+        </TraceCollapsibleTrigger>
+        <TraceCollapsibleContent className="flex flex-col gap-3">
+          {children}
+        </TraceCollapsibleContent>
+      </TraceCollapsible>
+    </Trace>
+  );
+}
+
 export function ChatMessages({
   lines,
   pending,
@@ -74,37 +113,18 @@ export function ChatMessages({
   // The answer is just the next message: the option text, or yes/no for the export.
   const choices =
     pending?.tool === "export_trip" ? ["yes", "no"] : (pending?.options ?? []);
-  // Busy and the last line is neither streaming text nor a running tool: the model is thinking silently.
-  const last = lines.at(-1);
-  const thinking =
-    busy &&
-    !(last?.kind === "tool" && last.state === "running") &&
-    !(last?.kind === "text" && last.role === "assistant");
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4 p-6 pb-44">
-      {lines.map((l) =>
-        l.kind === "tool" ? (
-          <ToolTrace key={l.key} line={l} />
-        ) : l.role === "user" ? (
-          <div
-            key={l.key}
-            className="bg-secondary ml-auto max-w-[80%] rounded-2xl px-4 py-2"
-          >
-            <p className="whitespace-pre-wrap">{l.text}</p>
-          </div>
+      {turnBlocks(lines, busy).map((b) =>
+        b.kind === "summary" ? (
+          <TurnSummary key={b.key} title={b.title} running={b.running}>
+            {b.items.map((l) => (
+              <LineView key={l.key} line={l} />
+            ))}
+          </TurnSummary>
         ) : (
-          <Streamdown key={l.key}>{l.text}</Streamdown>
+          <LineView key={b.line.key} line={b.line} />
         ),
-      )}
-      {thinking && (
-        <Trace>
-          <TraceLine status="running">
-            <TraceIcon>
-              <Sparkles />
-            </TraceIcon>
-            <TraceTitle>Thinking…</TraceTitle>
-          </TraceLine>
-        </Trace>
       )}
       {pending?.tool === "export_trip" && <p>Export the GPX files?</p>}
       {choices.length > 0 && (
