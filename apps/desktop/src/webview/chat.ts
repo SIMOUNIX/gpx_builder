@@ -1,5 +1,6 @@
 import type { ChatMessage, TripId } from "@gpx-builder/core/browser";
 import type { UIMessage } from "ai";
+import { traceOf } from "./trace";
 
 /** What the agent waits on: the `data-pending` payload of /api/chat (mirrors agent's `PendingQuestion`; the webview can't import agent). */
 export type Pending =
@@ -160,4 +161,70 @@ export function liveLines(messages: ChatUIMessage[]): Line[] {
       return [{ ...tool, state: "running", output: undefined }];
     }),
   );
+}
+
+type TextLine = Extract<Line, { kind: "text" }>;
+
+export type Block =
+  | { kind: "line"; line: TextLine }
+  | {
+      kind: "summary";
+      key: string;
+      title: string;
+      running: boolean;
+      items: Line[];
+    };
+
+/**
+ * Folds each turn (a user line to the next) into one summary of its steps and
+ * in-between text; only the final answer stays outside. The summary is running
+ * while the turn is busy and no answer text has started streaming.
+ */
+export function turnBlocks(lines: Line[], busy: boolean): Block[] {
+  const turns: Line[][] = [];
+  for (const l of lines) {
+    if (l.kind === "text" && l.role === "user") turns.push([l]);
+    else if (turns.length) turns.at(-1)?.push(l);
+    else turns.push([l]);
+  }
+  return turns.flatMap((turn, t) => {
+    const user = turn[0]?.kind === "text" && turn[0].role === "user";
+    const head = user ? turn.slice(0, 1) : [];
+    const rest = user ? turn.slice(1) : turn;
+    const final = rest.at(-1);
+    const answer =
+      final?.kind === "text" && final.role === "assistant" ? final : undefined;
+    const items = answer ? rest.slice(0, -1) : rest;
+    const rows = items.flatMap((l) => {
+      const row = l.kind === "tool" ? traceOf(l) : undefined;
+      return l.kind === "tool" && row ? [{ l, row }] : [];
+    });
+    const running = busy && t === turns.length - 1 && !answer;
+    const outside = (ls: Line[]): Block[] =>
+      ls.flatMap((line) =>
+        line.kind === "text" ? [{ kind: "line", line }] : [],
+      );
+    if (!rows.length && !running) return outside(turn);
+    const active = rows.findLast(
+      ({ l }) => l.kind === "tool" && l.state === "running",
+    );
+    const failed = rows.filter(
+      ({ l }) => l.kind === "tool" && l.state === "failed",
+    ).length;
+    const n = rows.length;
+    const title = running
+      ? (active?.row.title ?? "Thinking")
+      : `${n} step${n === 1 ? "" : "s"}${failed ? `, ${failed} failed` : ""}`;
+    return [
+      ...outside(head),
+      {
+        kind: "summary",
+        key: `${turn[0]?.key}:turn`, // stable from the first moment, so a reader's click survives new steps
+        title,
+        running,
+        items,
+      },
+      ...outside(answer ? [answer] : []),
+    ];
+  });
 }
