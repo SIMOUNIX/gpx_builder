@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 import {
   PlaceId,
+  PoiId,
   StageId,
+  WaypointId,
   mintChatId,
   type GeocodeCandidate,
 } from "@gpx-builder/core/server";
@@ -11,6 +13,7 @@ import {
   depsFor,
   emptyTrip,
   fakeGeocode,
+  fakePois,
   fakeRouting,
   memoryChats,
   memoryTrips,
@@ -359,4 +362,55 @@ test("a tool that throws reports a failed result to the hook", async () => {
     onToolResult: (n, ok) => seen.push(`${n} ${ok}`),
   });
   expect(seen).toEqual(["find_place false"]);
+});
+
+test("the model finds POIs along a routed stage and the transcript carries no coordinates", async () => {
+  const line: [number, number, number][] = [
+    [2.7, 48.4, 100],
+    [2.71, 48.4, 100],
+  ];
+  const trips = memoryTrips(emptyTrip());
+  const chats = memoryChats();
+  const stageId = StageId.parse("stage_1_aaaaaaaa");
+  const tap = {
+    poiId: PoiId.parse("osm:node/7"),
+    tags: { amenity: "drinking_water" },
+    geometry: [[2.705, 48.4005] as [number, number]],
+  };
+  const deps = {
+    ...depsFor(
+      trips,
+      fakeGeocode(candidates),
+      fakeRouting({ line, distanceM: 800, snapDistancesM: [0, 0] }),
+      fakePois([tap]),
+    ),
+    chats,
+    chatId: mintChatId(),
+    model: scriptedModel([
+      { calls: [{ name: "find_place", input: { query: "gare" } }] },
+      { calls: [{ name: "route", input: { stageId } }] },
+      { calls: [{ name: "find_pois", input: { stageId } }] },
+      { text: "There is a tap at km 0.4." },
+    ]),
+    now: () => new Date("2026-11-05T10:00:00.000Z"),
+  };
+  const wp = WaypointId.parse("wp_aaaaaaaa");
+  trips.store.save({
+    ...trips.trip(),
+    waypoints: {
+      [wp]: { id: wp, kind: "place", lngLat: [2.7, 48.4], label: "Gare" },
+    },
+    stages: [{ id: stageId, from: wp, to: wp, via: [] }],
+  });
+
+  const r = await runTurn(deps, "where can I drink on day 1?");
+  expect(r.ok).toBe(true);
+  expect(trips.trip().registry.pois[PoiId.parse("osm:node/7")]).toMatchObject({
+    name: "Drinking water",
+    kind: "water",
+    tier: "potable",
+  });
+  const results = JSON.stringify(chats.all().filter((m) => m.role === "tool"));
+  expect(results).toContain("osm:node/7");
+  expect(results).not.toContain("48.4005");
 });

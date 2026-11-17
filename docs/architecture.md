@@ -331,23 +331,23 @@ The transcript is for dialogue only. When the record is rebuilt, tool outputs ol
 
 ### 9.3 Tools
 
-| Tool                               | Kind                                                                   | Returns to the model                                                            |
-| ---------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `ask_user(question, options?)`     | **client-side** (no `execute`); rendered as a card, answered in the UI | the user's answer                                                               |
-| `find_place(query, nearHint?)`     | server → `GeocodePort`                                                 | candidates: `placeId`, label, kind                                              |
-| `find_pois(near, radiusKm, kinds)` | server → Overpass cache                                                | POIs: `poiId`, name, kind, water tier, distance; **top 15**                     |
-| `points_along(routeId, …)`         | server                                                                 | POIs near the line, distance along route; top 15                                |
-| `submit_brief(brief)`              | server, zod-validated                                                  | ack, or structured issues                                                       |
-| `submit_itinerary(stages)`         | server, zod-validated                                                  | ack + `stageId`s, or structured issues                                          |
-| `amend_stage(stageId, patch)`      | server, zod-validated                                                  | ack, or structured issues                                                       |
-| `route(stageId)`                   | server → `RoutingPort`                                                 | km, D+, D−, estimated time, snap distances, `routeId`                           |
-| `conditions(tripId)`               | server, **deterministic** (Open-Meteo + suncalc)                       | sunrise and sunset per day, forecast if within range, daylight margin per stage |
-| `validate(tripId)`                 | server, deterministic                                                  | violations + warnings (§11)                                                     |
-| `scout(stageId, question)`         | server, **synchronous sub-agent** (cheap model)                        | a short structured answer                                                       |
-| `critique(tripId)`                 | server, **synchronous sub-agent** (strong model)                       | proposed changes, never edits                                                   |
-| `export_trip(tripId)`              | **client-side** (no `execute`); the host asks y/N, the planner exports | paths of the written files                                                      |
+| Tool                           | Kind                                                                   | Returns to the model                                                                                                                               |
+| ------------------------------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ask_user(question, options?)` | **client-side** (no `execute`); rendered as a card, answered in the UI | the user's answer                                                                                                                                  |
+| `find_place(query, nearHint?)` | server → `GeocodePort`                                                 | candidates: `placeId`, label, kind                                                                                                                 |
+| `find_pois(stageId, kinds?)`   | server → `PoiPort` (Overpass)                                          | POIs within the detour allowance, grouped by kind (water by tier); **top 5 per group**, with `poiId`, name, `distanceM` to the route and `kmAlong` |
+| `points_along(routeId, …)`     | server                                                                 | POIs near the line, distance along route; top 15                                                                                                   |
+| `submit_brief(brief)`          | server, zod-validated                                                  | ack, or structured issues                                                                                                                          |
+| `submit_itinerary(stages)`     | server, zod-validated                                                  | ack + `stageId`s, or structured issues                                                                                                             |
+| `amend_stage(stageId, patch)`  | server, zod-validated                                                  | ack, or structured issues                                                                                                                          |
+| `route(stageId)`               | server → `RoutingPort`                                                 | km, D+, D−, estimated time, snap distances, `routeId`                                                                                              |
+| `conditions(tripId)`           | server, **deterministic** (Open-Meteo + suncalc)                       | sunrise and sunset per day, forecast if within range, daylight margin per stage                                                                    |
+| `validate(tripId)`             | server, deterministic                                                  | violations + warnings (§11)                                                                                                                        |
+| `scout(stageId, question)`     | server, **synchronous sub-agent** (cheap model)                        | a short structured answer                                                                                                                          |
+| `critique(tripId)`             | server, **synchronous sub-agent** (strong model)                       | proposed changes, never edits                                                                                                                      |
+| `export_trip(tripId)`          | **client-side** (no `execute`); the host asks y/N, the planner exports | paths of the written files                                                                                                                         |
 
-M1 implements `ask_user`, `find_place`, `submit_brief`, `submit_itinerary`, `route` and `export_trip`. The rest arrive in M4.
+M1 implements `ask_user`, `find_place`, `submit_brief`, `submit_itinerary`, `route` and `export_trip`; `find_pois` is added on top. The rest arrive in M4.
 
 M1 tool details (as built):
 
@@ -358,6 +358,7 @@ M1 tool details (as built):
 - `submit_brief(brief, name?)`: accepts a partial `BriefDraft`, merges it over the stored one (top-level fields), checks every `placeId` is in the registry, optionally sets the trip name, and answers `{ complete, missing }`. A trip starts as "Untitled trip" with an empty brief; the CLI creates the trip and its chat together.
 - `submit_itinerary(stages)`: refused until the brief is complete. Stages are `{ from, to, via?, overnight? }` of `placeId`s; it replaces all stages and waypoints, mints stage and waypoint ids, and shares one waypoint between stages that meet at the same place.
 - `route(stageId)`: returns km, D+, D−, `routeId`. The DIN 33466 walking time is stored in the stage stats (`walkingMin`, filled by the trip service from our own geometry) and shown in the digest; snap distances are stored on the stage but not returned yet.
+- `find_pois(stageId, kinds?)`: refused with `unrouted` (the ids) until every stage is routed, because the detour allowance is 1% of the whole trip's length (min 200 m, max 2 km). It queries `PoiPort` for the tiles around the stage's route, classifies the elements in `core` (`classifyPoi`), keeps those whose straight-line distance to the route is within the allowance, and saves all of them in `trip.registry.pois` (`name`, `kind`, `tier` for water, `lngLat`). A waterway is stored at its point closest to the route; a crossing is at distance 0. The model gets the top 5 per group (`water.potable`, `water.treatable`, `water.unknown`, `food`, `picnic`, `resupply`) and the number found. No detour is measured yet. An unnamed POI is labelled by what it is ("Drinking water", "Bakery"). If Overpass is down the tool returns a plain message and changes nothing.
 - Tool results that did nothing are `{ ok: false, issues }` (each issue has the input `path`) or `{ ok: false, error }` for adapter and store failures.
 - `TurnHooks` also pass the `toolCallId` (third argument of `onToolCall` and `onToolResult`) so a host can pair a call with its result.
 - `export_trip` is client-side like `ask_user` (no `execute`, no SDK approval). The turn stops with a pending `export_trip` call, the host asks the user `y/N`, and the typed line is the next `runTurn` input. See "Export approval" below.
@@ -477,18 +478,21 @@ Tolerances and thresholds live in one `rules.ts` table in `core`.
 
 ### 12.3 POIs (Overpass)
 
-- **Tiles:** fixed z12 (about 6.5 km at 48°N). One combined query per tile for all POI kinds, `out center`.
-- **Cache:** time-to-live 2–4 weeks, stored with `fetchedAt`.
-- **Etiquette:** one request at a time from a queue, identifying `User-Agent` (app + repo URL), backoff on 429/504, configurable endpoint.
+- **Port:** `PoiPort.near({ line })` returns the raw OSM elements (`poiId`, tags, geometry) of every tile the route passes through, plus a margin of 2 km (the largest detour allowance). Classification, distances to the route and the allowance live in `core`, not in the adapter.
+- **Tiles:** fixed z12 (about 6.5 km at 48°N). One combined query per tile for all POI kinds. `out center` for everything except stream and river ways, which use `out geom` so the point closest to the route can be found.
+- **Cache:** per tile, time-to-live 21 days (the middle of 2–4 weeks). An answer carrying an Overpass `runtime error` remark is partial and never cached.
+- **Etiquette:** one request at a time from a queue, identifying `User-Agent`, retries with backoff on 5xx, waiting out 429 (`Retry-After`, else 5 s then 10 s), configurable endpoint.
+- **Kinds:** water; food (`restaurant`, `cafe`, `fast_food`); picnic (`tourism=picnic_site`, `leisure=picnic_table`); resupply (`supermarket`, `convenience`, `bakery`).
 - **Water tiers:**
 
-| Tier     | OSM tags                                                                               | Counts for `water-gap` |
-| -------- | -------------------------------------------------------------------------------------- | ---------------------- |
-| potable  | `amenity=drinking_water`, `man_made=water_tap`, any with `drinking_water=yes`          | yes                    |
-| unknown  | `natural=spring` without `drinking_water=yes`, cemetery taps, `drinking_water` missing | no (warning)           |
-| resupply | shops, cafés, restaurants with opening hours                                           | no (shown separately)  |
+| Tier      | OSM tags                                                                                                   | Counts for `water-gap`                      |
+| --------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| potable   | `amenity=drinking_water`, or `drinking_water=yes` on anything                                              | yes                                         |
+| treatable | `waterway=stream/river/waterfall`, `natural=water` (lake, pond), `natural=spring` not `drinking_water=yes` | only if the hiker carries treatment (later) |
+| unknown   | `man_made=water_tap` with no `drinking_water` tag, and any `seasonal=yes` source                           | no (warning)                                |
 
-- Anything tagged `seasonal=yes` or `drinking_water=no` is never potable.
+- A source tagged `drinking_water=no` is never potable: a tap is dropped, a stream or spring stays treatable.
+- Waterways are lines: the POI is the point of the waterway closest to the route, at distance 0 where the route crosses it.
 
 - **Overnight options:** `tourism=camp_site` (incl. `camp_site=basic`), `tourism=wilderness_hut`, `amenity=shelter`, `tourism=alpine_hut`, gîtes (`tourism=hostel` / `guest_house` with gîte tags).
 - **Region rules file:** a versioned `rules/regions/<region>.json` maps areas to bivouac allowed / banned / designated zones only (e.g. bivouac is generally banned in Île-de-France state forests, with designated areas in Fontainebleau). Missing region = "unverified".

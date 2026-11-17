@@ -1,6 +1,7 @@
 import {
   createEnvSecrets,
   createOrsRouter,
+  createOverpassPois,
   createPhotonGeocoder,
 } from "@gpx-builder/adapters";
 import {
@@ -38,6 +39,7 @@ export async function compose(): Promise<ServerDeps> {
     chats: createChatStore({ dataDir: dirs.dataDir }),
     geocode: createPhotonGeocoder({ cache }),
     routing: createOrsRouter({ apiKey: orsKey, cache }),
+    pois: createOverpassPois({ cache }),
     model: model.value,
   };
 }

@@ -6,6 +6,8 @@ import {
   ok,
   type GeocodeCandidate,
   type GeocodePort,
+  type PoiPort,
+  type RawPoi,
   type Position3,
   type RoutedStage,
   type RoutingPort,
@@ -89,15 +91,30 @@ export const fakeRouting = (
   };
 };
 
+export const fakePois = (
+  found: RawPoi[] = [],
+): PoiPort & { calls: unknown[] } => {
+  const calls: unknown[] = [];
+  return {
+    calls,
+    async near(q) {
+      calls.push(q);
+      return ok(found);
+    },
+  };
+};
+
 export const depsFor = (
   trips: ReturnType<typeof memoryTrips>,
   geocode: GeocodePort,
   routing: RoutingPort,
+  pois: PoiPort = fakePois(),
 ): AgentDeps => ({
   tripId: trips.trip().tripId,
   trips: trips.store,
   geocode,
   routing,
+  pois,
 });
 
 /** Calls a tool's `execute` the way the loop would. */

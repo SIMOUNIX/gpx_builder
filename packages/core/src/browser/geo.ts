@@ -6,7 +6,7 @@ export type LngLat = z.infer<typeof LngLat>;
 /** [lng, lat, elevation in metres] */
 export type Position3 = [number, number, number];
 
-const EARTH_RADIUS_M = 6_371_008.8;
+export const EARTH_RADIUS_M = 6_371_008.8;
 const rad = (deg: number) => (deg * Math.PI) / 180;
 
 export function haversineM(a: readonly number[], b: readonly number[]): number {

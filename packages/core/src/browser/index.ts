@@ -7,6 +7,7 @@ export * from "./geo";
 export * from "./gpx";
 export * from "./ids";
 export * from "./phase";
+export * from "./poi";
 export * from "./result";
 export * from "./trip";
 export * from "./walking-time";

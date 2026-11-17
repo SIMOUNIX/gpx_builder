@@ -1,5 +1,6 @@
 import type {
   GeocodePort,
+  PoiPort,
   RoutingPort,
   TripId,
   TripStorePort,
@@ -11,4 +12,5 @@ export type AgentDeps = {
   trips: TripStorePort;
   geocode: GeocodePort;
   routing: RoutingPort;
+  pois: PoiPort;
 };

@@ -10,6 +10,7 @@ import {
   TripId,
   WaypointId,
 } from "./ids";
+import { WaterTier } from "./poi";
 
 export const Waypoint = z.object({
   id: WaypointId,
@@ -60,7 +61,13 @@ export const Trip = z.object({
     ),
     pois: z.record(
       PoiId,
-      z.object({ name: z.string(), kind: z.string(), lngLat: LngLat }),
+      z.object({
+        name: z.string(),
+        kind: z.string(),
+        /** Water only. */
+        tier: z.enum(WaterTier).optional(),
+        lngLat: LngLat,
+      }),
     ),
   }),
 });

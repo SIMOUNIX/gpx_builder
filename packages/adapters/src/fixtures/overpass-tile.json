@@ -1,0 +1,415 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-11-17T16:44:05Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+    {
+      "type": "node",
+      "id": 536385654,
+      "lat": 48.4530715,
+      "lon": 2.6221684,
+      "tags": {
+        "amenity": "restaurant",
+        "indoor_seating": "yes",
+        "name": "Blackbird",
+        "outdoor_seating": "yes"
+      }
+    },
+    {
+      "type": "node",
+      "id": 974434738,
+      "lat": 48.4086421,
+      "lon": 2.6319031,
+      "tags": {
+        "drinking_water": "no",
+        "name": "Fontaine des Ermites",
+        "natural": "spring",
+        "start_date": "1169"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1597550076,
+      "lat": 48.4440963,
+      "lon": 2.6091538,
+      "tags": {
+        "amenity": "restaurant",
+        "check_date": "2026-03-21",
+        "cuisine": "french",
+        "name": "Hôtellerie du Bas-Bréau",
+        "website": "http://www.bas-breau.com"
+      }
+    },
+    {
+      "type": "node",
+      "id": 2381710094,
+      "lat": 48.4445498,
+      "lon": 2.6075884,
+      "tags": {
+        "addr:city": "Barbizon",
+        "addr:housenumber": "31",
+        "addr:postcode": "77630",
+        "addr:street": "Grande Rue",
+        "amenity": "restaurant",
+        "check_date": "2025-05-24",
+        "cuisine": "italian",
+        "name": "L'Angelo",
+        "phone": "+33 1 60 68 93 18"
+      }
+    },
+    {
+      "type": "node",
+      "id": 2381710095,
+      "lat": 48.4438219,
+      "lon": 2.6098475,
+      "tags": {
+        "addr:housenumber": "16",
+        "addr:postcode": "77630",
+        "addr:street": "Grande Rue",
+        "amenity": "restaurant",
+        "check_date": "2026-04-19",
+        "cuisine": "burger;diner;french",
+        "name": "O Bout Barbizon",
+        "phone": "+33 1 64 14 98 75"
+      }
+    },
+    {
+      "type": "node",
+      "id": 2381710096,
+      "lat": 48.4447374,
+      "lon": 2.6072079,
+      "tags": {
+        "amenity": "restaurant",
+        "check_date": "2025-01-25",
+        "name": "La Bohème"
+      }
+    },
+    {
+      "type": "node",
+      "id": 2381710098,
+      "lat": 48.445657,
+      "lon": 2.6047022,
+      "tags": {
+        "check_date": "2024-07-14",
+        "name": "La galerie des pains",
+        "shop": "bakery"
+      }
+    },
+    {
+      "type": "node",
+      "id": 2381710166,
+      "lat": 48.44564,
+      "lon": 2.604789,
+      "tags": {
+        "check_date": "2024-07-14",
+        "name": "Épicerie de Barizon",
+        "note": "C'est bien le nom affiché sur l'épicerie",
+        "shop": "convenience"
+      }
+    },
+    {
+      "type": "node",
+      "id": 3709730143,
+      "lat": 48.4451745,
+      "lon": 2.6031789,
+      "tags": {
+        "access": "yes",
+        "amenity": "toilets",
+        "drinking_water": "yes",
+        "fee": "no",
+        "toilets:disposal": "flush",
+        "wheelchair": "yes"
+      }
+    },
+    {
+      "type": "node",
+      "id": 5630674721,
+      "lat": 48.4453492,
+      "lon": 2.6056502,
+      "tags": {
+        "addr:housenumber": "51",
+        "addr:street": "Grande Rue",
+        "amenity": "restaurant",
+        "check_date": "2026-03-21",
+        "name": "Ermitage Saint-Antoine",
+        "website": "https://www.lermitagesaintantoine.com/"
+      }
+    },
+    {
+      "type": "node",
+      "id": 5630694936,
+      "lat": 48.4455771,
+      "lon": 2.6044727,
+      "tags": {
+        "amenity": "cafe",
+        "check_date": "2024-07-14",
+        "cuisine": "ice_cream",
+        "name": "Crêperie Barjole",
+        "outdoor_seating": "yes",
+        "takeaway": "yes"
+      }
+    },
+    {
+      "type": "node",
+      "id": 9997471883,
+      "lat": 48.4473086,
+      "lon": 2.5501699,
+      "tags": { "amenity": "drinking_water" }
+    },
+    {
+      "type": "node",
+      "id": 10106871476,
+      "lat": 48.4463449,
+      "lon": 2.601517,
+      "tags": { "amenity": "restaurant", "name": "Le Relais de Barbizon" }
+    },
+    {
+      "type": "node",
+      "id": 10107040578,
+      "lat": 48.4455419,
+      "lon": 2.6053405,
+      "tags": {
+        "amenity": "restaurant",
+        "check_date": "2026-03-21",
+        "name": "Le Gaulois sur le Grill"
+      }
+    },
+    {
+      "type": "node",
+      "id": 10107983932,
+      "lat": 48.4177239,
+      "lon": 2.5653872,
+      "tags": {
+        "addr:city": "Arbonne-la-Forêt",
+        "addr:housenumber": "635",
+        "addr:postcode": "77630",
+        "addr:street": "Rue Grande",
+        "amenity": "restaurant",
+        "cuisine": "pizza",
+        "name": "Dolce Pizza",
+        "opening_hours": "Tu-Sa 11:00-14:00, 18:00-22:00; Su 11:00-14:00, 18:00-21:30",
+        "phone": "+33160664516"
+      }
+    },
+    {
+      "type": "node",
+      "id": 10575081702,
+      "lat": 48.4518725,
+      "lon": 2.6341222,
+      "tags": {
+        "bench": "yes",
+        "leisure": "picnic_table",
+        "material": "concrete"
+      }
+    },
+    {
+      "type": "node",
+      "id": 10575081703,
+      "lat": 48.4517815,
+      "lon": 2.6337496,
+      "tags": {
+        "bench": "yes",
+        "leisure": "picnic_table",
+        "material": "concrete"
+      }
+    },
+    {
+      "type": "node",
+      "id": 10802599042,
+      "lat": 48.4308611,
+      "lon": 2.5855479,
+      "tags": {
+        "name": "Le Chant des Blés boulangerie BIO",
+        "opening_hours": "We-Fr 07:00-19:30; Sa 07:30-19:30; Su 07:30-19:00",
+        "shop": "bakery"
+      }
+    },
+    {
+      "type": "node",
+      "id": 10898911652,
+      "lat": 48.4527852,
+      "lon": 2.6224973,
+      "tags": {
+        "check_date": "2025-10-12",
+        "name": "Boulangerie de la Forêt",
+        "shop": "bakery"
+      }
+    },
+    {
+      "type": "node",
+      "id": 11982586634,
+      "lat": 48.4460602,
+      "lon": 2.5524216,
+      "tags": { "leisure": "picnic_table" }
+    },
+    {
+      "type": "node",
+      "id": 12346095403,
+      "lat": 48.444202,
+      "lon": 2.6088629,
+      "tags": {
+        "amenity": "cafe",
+        "changing_table": "no",
+        "diet:vegan": "yes",
+        "diet:vegetarian": "yes",
+        "indoor_seating": "yes",
+        "level": "0",
+        "name": "La Juxtaposition",
+        "opening_hours": "We-Su 11:30-19:00",
+        "outdoor_seating": "yes",
+        "smoking": "outside",
+        "takeaway": "yes",
+        "toilets": "yes",
+        "toilets:access": "customers",
+        "toilets:disposal": "flush",
+        "toilets:handwashing": "yes",
+        "toilets:paper_supplied": "yes",
+        "toilets:position": "seated",
+        "toilets:wheelchair": "yes"
+      }
+    },
+    {
+      "type": "node",
+      "id": 12346095405,
+      "lat": 48.4454654,
+      "lon": 2.6057464,
+      "tags": { "amenity": "restaurant", "name": "Chez Pauline" }
+    },
+    {
+      "type": "node",
+      "id": 12860377704,
+      "lat": 48.4446974,
+      "lon": 2.6073384,
+      "tags": { "amenity": "cafe", "name": "L'A" }
+    },
+    {
+      "type": "node",
+      "id": 14011206482,
+      "lat": 48.4450087,
+      "lon": 2.6068222,
+      "tags": { "amenity": "drinking_water", "man_made": "water_tap" }
+    },
+    {
+      "type": "way",
+      "id": 38686122,
+      "center": { "lat": 48.4401417, "lon": 2.6248928 },
+      "tags": {
+        "addr:city": "Barbizon",
+        "addr:postcode": "77630",
+        "addr:street": "Allée des Vaches",
+        "amenity": "cafe",
+        "bar": "yes",
+        "building": "yes",
+        "cuisine": "ice_cream;coffee_shop;crèpes;frites",
+        "internet_access": "no",
+        "name": "Châlet de la Caverne des Brigands",
+        "opening_hours": "Mo-Su 10:00-19:00",
+        "outdoor_seating": "yes",
+        "website": "https://lesaubergesdelaforet.com/?page_id=59"
+      }
+    },
+    {
+      "type": "way",
+      "id": 38686126,
+      "center": { "lat": 48.4402583, "lon": 2.6250312 },
+      "tags": {
+        "amenity": "restaurant",
+        "building": "yes",
+        "capacity": "80",
+        "cuisine": "french",
+        "name": "Châlet de la Caverne des Brigands",
+        "outdoor_seating": "yes",
+        "website": "https://lesaubergesdelaforet.com/?page_id=59"
+      }
+    },
+    {
+      "type": "way",
+      "id": 113234652,
+      "center": { "lat": 48.401547, "lon": 2.551229 },
+      "tags": {
+        "amenity": "restaurant",
+        "building": "yes",
+        "cuisine": "french",
+        "name": "La Forêt - Chez Francis et Corinne",
+        "phone": "+33164140445",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "type": "way",
+      "id": 326001480,
+      "center": { "lat": 48.4496265, "lon": 2.6056972 },
+      "tags": {
+        "natural": "water",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2015",
+        "water": "pond"
+      }
+    },
+    {
+      "type": "way",
+      "id": 897914630,
+      "center": { "lat": 48.4279297, "lon": 2.5815965 },
+      "tags": { "natural": "water", "water": "pond" }
+    },
+    {
+      "type": "way",
+      "id": 47999066,
+      "bounds": {
+        "minlat": 48.4171812,
+        "minlon": 2.5450907,
+        "maxlat": 48.4449172,
+        "maxlon": 2.5510596
+      },
+      "geometry": [
+        { "lat": 48.4171812, "lon": 2.5450907 },
+        { "lat": 48.4173783, "lon": 2.5451411 },
+        { "lat": 48.4189379, "lon": 2.5454849 },
+        { "lat": 48.4229113, "lon": 2.5463608 },
+        { "lat": 48.4233421, "lon": 2.5463115 },
+        { "lat": 48.4233499, "lon": 2.5463106 },
+        { "lat": 48.4247566, "lon": 2.5462361 },
+        { "lat": 48.4259054, "lon": 2.5461753 },
+        { "lat": 48.4266624, "lon": 2.5461352 },
+        { "lat": 48.4275129, "lon": 2.546513 },
+        { "lat": 48.4296205, "lon": 2.5474447 },
+        { "lat": 48.4377967, "lon": 2.5510596 },
+        { "lat": 48.4382984, "lon": 2.5507037 },
+        { "lat": 48.4384591, "lon": 2.5505898 },
+        { "lat": 48.4409812, "lon": 2.548572 },
+        { "lat": 48.4410617, "lon": 2.5485294 },
+        { "lat": 48.4411204, "lon": 2.5485306 },
+        { "lat": 48.441179, "lon": 2.5485458 },
+        { "lat": 48.441274, "lon": 2.5485292 },
+        { "lat": 48.441369, "lon": 2.5484848 },
+        { "lat": 48.4415178, "lon": 2.5483782 },
+        { "lat": 48.4416604, "lon": 2.5482645 },
+        { "lat": 48.441828, "lon": 2.5480373 },
+        { "lat": 48.441968, "lon": 2.5478393 },
+        { "lat": 48.4420997, "lon": 2.5476892 },
+        { "lat": 48.4422067, "lon": 2.5475391 },
+        { "lat": 48.4425607, "lon": 2.546934 },
+        { "lat": 48.442662, "lon": 2.5467467 },
+        { "lat": 48.4428659, "lon": 2.5464596 },
+        { "lat": 48.4430621, "lon": 2.5462461 },
+        { "lat": 48.4431401, "lon": 2.5461895 },
+        { "lat": 48.4432686, "lon": 2.5461294 },
+        { "lat": 48.443397, "lon": 2.5460756 },
+        { "lat": 48.4435155, "lon": 2.5460239 },
+        { "lat": 48.4437303, "lon": 2.5459778 },
+        { "lat": 48.4439537, "lon": 2.545951 },
+        { "lat": 48.4442092, "lon": 2.5458587 },
+        { "lat": 48.4444733, "lon": 2.5457407 },
+        { "lat": 48.4447626, "lon": 2.5455946 },
+        { "lat": 48.4449172, "lon": 2.5454303 }
+      ],
+      "tags": {
+        "name": "Ru de Rebais",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010",
+        "waterway": "stream"
+      }
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import type {
   ChatMessage,
   LngLat,
   PlaceId,
+  PoiId,
   Position3,
   Result,
   RouteId,
@@ -44,6 +45,19 @@ export interface RoutingPort {
     waypoints: LngLat[];
     profile: string;
   }): Promise<Result<RoutedStage>>;
+}
+
+/** One OSM element near a route, as the source reports it. Classification is core's job. */
+export type RawPoi = {
+  poiId: PoiId;
+  tags: Record<string, string>;
+  /** One point, or the vertices of a waterway. */
+  geometry: LngLat[];
+};
+
+export interface PoiPort {
+  /** Every element in the map tiles the route (plus a margin) passes through. */
+  near(q: { line: Position3[] }): Promise<Result<RawPoi[]>>;
 }
 
 /** Owns the trip folders on disk. Synchronous: one process, one writer. */
