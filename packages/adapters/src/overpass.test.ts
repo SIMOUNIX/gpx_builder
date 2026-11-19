@@ -134,3 +134,25 @@ test("calls are made one at a time", async () => {
   ]);
   expect(most).toBe(1);
 });
+
+test("elements that cannot be read or placed are dropped", async () => {
+  const f = fakeFetch(
+    json({
+      elements: [
+        "not an element",
+        { type: "node", id: 1, tags: { amenity: "cafe" } }, // no position
+        { type: "node", id: 2, lat: 48.4, lon: 2.6, tags: { amenity: "cafe" } },
+      ],
+    }),
+  );
+  const r = await make(f).near({ line, marginM: MARGIN_M });
+  if (!r.ok) throw new Error(r.error.message);
+  expect(r.value.map((p) => String(p.poiId))).toEqual(["osm:node/2"]);
+});
+
+test("without an injected sleep the wait really happens", async () => {
+  const f = fakeFetch(json({}, 429, { "retry-after": "0" }), json(recorded));
+  const pois = createOverpassPois({ http: { fetch: f.fn } });
+  expect((await pois.near({ line, marginM: MARGIN_M })).ok).toBe(true);
+  expect(f.calls).toHaveLength(2);
+});
