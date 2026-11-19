@@ -5,6 +5,7 @@ import {
   createAppRouter,
   type ChatStorePort,
   type GeocodePort,
+  type PoiPort,
   type RoutingPort,
   type TripStorePort,
 } from "@gpx-builder/core/server";
@@ -15,6 +16,7 @@ export type ServerDeps = {
   chats: ChatStorePort;
   geocode: GeocodePort;
   routing: RoutingPort;
+  pois: PoiPort;
   model: LanguageModel;
 };
 

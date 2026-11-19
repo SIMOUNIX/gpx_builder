@@ -2,6 +2,7 @@ import { createInterface } from "node:readline/promises";
 import {
   createSecrets,
   createOrsRouter,
+  createOverpassPois,
   type AppSecrets,
   createPhotonGeocoder,
 } from "@gpx-builder/adapters";
@@ -235,6 +236,7 @@ export async function main(
     trips,
     geocode: createPhotonGeocoder({ cache }),
     routing: createOrsRouter({ apiKey: orsKey, cache }),
+    pois: createOverpassPois(),
     chats,
     chatId,
     model: model.value,

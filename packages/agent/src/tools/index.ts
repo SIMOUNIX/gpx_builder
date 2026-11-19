@@ -2,6 +2,7 @@ import type { AgentDeps } from "../deps";
 import { askUser } from "./ask-user";
 import { exportTrip } from "./export-trip";
 import { findPlace } from "./find-place";
+import { findPois } from "./find-pois";
 import { route } from "./route";
 import { submitBrief } from "./submit-brief";
 import { submitItinerary } from "./submit-itinerary";
@@ -10,6 +11,7 @@ import { submitItinerary } from "./submit-itinerary";
 export const createTools = (deps: AgentDeps) => ({
   ask_user: askUser,
   find_place: findPlace(deps),
+  find_pois: findPois(deps),
   submit_brief: submitBrief(deps),
   submit_itinerary: submitItinerary(deps),
   route: route(deps),

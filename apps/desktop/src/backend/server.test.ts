@@ -46,6 +46,7 @@ beforeAll(() => {
         capabilities: { maxWaypoints: 50, profiles: [] },
         route: stub,
       },
+      pois: { near: stub },
       model,
     },
   });
@@ -402,6 +403,7 @@ test("a handler that throws becomes a bare 500", async () => {
         capabilities: { maxWaypoints: 50, profiles: [] },
         route: stub,
       },
+      pois: { near: stub },
       model,
     },
   });
@@ -428,6 +430,7 @@ const handlerDeps = (over: object = {}) =>
     chats: createChatStore({ dataDir: join(dir, "data") }),
     geocode: { search: stub },
     routing: { capabilities: { maxWaypoints: 50, profiles: [] }, route: stub },
+    pois: { near: stub },
     model,
     ...over,
   }) as never;

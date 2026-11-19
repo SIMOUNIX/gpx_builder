@@ -1,8 +1,10 @@
 import { expect, test } from "bun:test";
 import {
   PlaceId,
+  PoiId,
   err,
   type GeocodeCandidate,
+  type RawPoi,
   type RoutedStage,
   type RoutingPort,
 } from "@gpx-builder/core/server";
@@ -10,6 +12,7 @@ import {
   depsFor,
   emptyTrip,
   fakeGeocode,
+  fakePois,
   fakeRouting,
   memoryTrips,
   run,
@@ -366,4 +369,169 @@ test("route reports a stage deleted while the router was busy", async () => {
   const tools = createTools(depsFor(s.trips, s.geocode, racing));
   const out = await run<Failure>(tools.route, { stageId: s.stageId });
   expect(out.issues?.[0]?.path).toBe("stageId");
+});
+
+// ---- find_pois ----
+
+const raw = (
+  id: number,
+  tags: Record<string, string>,
+  ...geometry: [number, number][]
+): RawPoi => ({ poiId: PoiId.parse(`osm:node/${id}`), tags, geometry });
+
+// The routed line runs from (2.7264, 48.4153) to (2.7, 48.4); its middle is (2.7132, 48.4077).
+const around: RawPoi[] = [
+  raw(1, { amenity: "drinking_water" }, [2.7132, 48.4087]), // ~110 m off
+  raw(
+    2,
+    { waterway: "stream", name: "Ru du Pré" },
+    [2.7132, 48.4177],
+    [2.7132, 48.3977],
+  ), // crosses
+  raw(3, { amenity: "restaurant", name: "Chez Loin" }, [2.7132, 48.4177]), // ~1.1 km off
+  raw(4, { man_made: "water_tap", drinking_water: "no" }, [2.7132, 48.4087]), // not drinkable
+  raw(5, { shop: "bakery" }, [2.7132, 48.4082]),
+  raw(6, { amenity: "bank" }, [2.7132, 48.4082]), // not one of our kinds
+];
+
+async function routedStage(pois = fakePois(around)) {
+  const trips = memoryTrips(emptyTrip());
+  const tools = createTools(
+    depsFor(trips, fakeGeocode(candidates), fakeRouting(routed), pois),
+  );
+  await run(tools.find_place, { query: "x" });
+  await run(tools.submit_brief, { brief: fullBrief });
+  const out = await run<{ ok: true; stages: { stageId: string }[] }>(
+    tools.submit_itinerary,
+    { stages: [{ from: gare, to: village }] },
+  );
+  const stageId = out.stages[0]!.stageId;
+  await run(tools.route, { stageId });
+  return { trips, tools, pois, stageId };
+}
+
+type Listed = {
+  ok: true;
+  allowanceM: number;
+  groups: Record<
+    string,
+    {
+      found: number;
+      pois: {
+        poiId: string;
+        name: string;
+        distanceM: number;
+        kmAlong: number;
+      }[];
+    }
+  >;
+};
+
+test("find_pois lists the POIs within the allowance, grouped, nearest first", async () => {
+  const { tools, stageId } = await routedStage();
+  const out = await run<Listed>(tools.find_pois, { stageId });
+  expect(out.allowanceM).toBe(200);
+  expect(Object.keys(out.groups).sort()).toEqual([
+    "resupply",
+    "water.potable",
+    "water.treatable",
+  ]);
+  expect(out.groups["water.potable"]!.pois[0]).toMatchObject({
+    poiId: "osm:node/1",
+    name: "Drinking water",
+  });
+  expect(out.groups["resupply"]!.pois[0]).toMatchObject({ name: "Bakery" });
+  // the stream crosses the route
+  expect(out.groups["water.treatable"]!.pois[0]).toMatchObject({
+    name: "Ru du Pré",
+    distanceM: 0,
+  });
+  expect(JSON.stringify(out)).not.toContain("2.71"); // no coordinates
+});
+
+test("find_pois asks for a corridor of the detour allowance, capped at 500 m", async () => {
+  const { tools, pois, stageId } = await routedStage();
+  await run(tools.find_pois, { stageId });
+  expect((pois as ReturnType<typeof fakePois>).calls[0]).toMatchObject({
+    marginM: 200,
+  });
+});
+
+test("find_pois stores what it found in the registry, with the water tier", async () => {
+  const { tools, trips, stageId } = await routedStage();
+  await run(tools.find_pois, { stageId });
+  const { pois } = trips.trip().registry;
+  expect(Object.keys(pois).sort()).toEqual([
+    "osm:node/1",
+    "osm:node/2",
+    "osm:node/5",
+  ]);
+  expect(pois[PoiId.parse("osm:node/1")]).toMatchObject({
+    kind: "water",
+    tier: "potable",
+  });
+  // a waterway is stored at its crossing with the route
+  const stream = pois[PoiId.parse("osm:node/2")]!;
+  expect(stream.lngLat[0]).toBeCloseTo(2.7132, 3);
+  expect(stream.lngLat[1]).toBeCloseTo(48.4077, 3);
+  expect(pois[PoiId.parse("osm:node/5")]!.tier).toBeUndefined();
+});
+
+test("find_pois only returns the kinds asked for", async () => {
+  const { tools, stageId } = await routedStage();
+  const out = await run<Listed>(tools.find_pois, {
+    stageId,
+    kinds: ["resupply"],
+  });
+  expect(Object.keys(out.groups)).toEqual(["resupply"]);
+});
+
+test("find_pois shows 5 per group and says how many there are", async () => {
+  const many = Array.from({ length: 8 }, (_, i) =>
+    raw(100 + i, { amenity: "cafe" }, [2.7132, 48.4078 + i * 0.0001]),
+  );
+  const { tools, stageId } = await routedStage(fakePois(many));
+  const out = await run<Listed>(tools.find_pois, { stageId });
+  expect(out.groups["food"]!.found).toBe(8);
+  expect(out.groups["food"]!.pois).toHaveLength(5);
+});
+
+test("find_pois waits until every stage is routed", async () => {
+  const { tools, trips, pois } = await routedStage();
+  await run(tools.submit_itinerary, {
+    stages: [
+      { from: gare, to: village },
+      { from: village, to: gare },
+    ],
+  });
+  const first = trips.trip().stages[0]!.id;
+  await run(tools.route, { stageId: first });
+  const out = await run<Failure & { unrouted: string[] }>(tools.find_pois, {
+    stageId: first,
+  });
+  expect(out.ok).toBe(false);
+  expect(out.unrouted).toEqual([trips.trip().stages[1]!.id]);
+  expect((pois as ReturnType<typeof fakePois>).calls).toHaveLength(0);
+});
+
+test("find_pois rejects an unknown stage", async () => {
+  const { tools } = await routedStage();
+  const out = await run<Failure>(tools.find_pois, {
+    stageId: "stage_9_deadbeef",
+  });
+  expect(out.issues?.[0]?.path).toBe("stageId");
+});
+
+test("an unavailable Overpass is a clear message and changes nothing", async () => {
+  const down = {
+    near: async () =>
+      err({ kind: "unavailable" as const, message: "HTTP 504" }),
+  };
+  const { tools, trips, stageId } = await routedStage(down as never);
+  const before = trips.trip();
+  const out = await run<Failure>(tools.find_pois, { stageId });
+  expect(out.ok).toBe(false);
+  expect(out.error).toContain("unavailable");
+  expect(out.error).toContain("try again later");
+  expect(trips.trip()).toBe(before);
 });

@@ -49,6 +49,7 @@ export function createChatHandler(deps: ServerDeps, keepAliveMs = 5_000) {
               trips: deps.trips,
               geocode: deps.geocode,
               routing: deps.routing,
+              pois: deps.pois,
               chats: deps.chats,
               chatId: chatIdOf(tripId),
               model: deps.model,
