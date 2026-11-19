@@ -39,7 +39,7 @@ export async function compose(): Promise<ServerDeps> {
     chats: createChatStore({ dataDir: dirs.dataDir }),
     geocode: createPhotonGeocoder({ cache }),
     routing: createOrsRouter({ apiKey: orsKey, cache }),
-    pois: createOverpassPois({ cache }),
+    pois: createOverpassPois(),
     model: model.value,
   };
 }

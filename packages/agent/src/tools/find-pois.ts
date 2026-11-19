@@ -14,6 +14,7 @@ import type { AgentDeps } from "../deps";
 import { failIssues, failStore } from "../results";
 
 const PER_GROUP = 5;
+const CORRIDOR_CAP_M = 500;
 
 const WATER_LABEL: Record<WaterTier, string> = {
   potable: "Drinking water",
@@ -64,9 +65,13 @@ export const findPois = (deps: AgentDeps) =>
       if (!line.ok) return failStore(line.error);
 
       const tripKm = trip.stages.reduce((n, s) => n + (s.stats?.km ?? 0), 0);
-      const allowanceM = detourAllowanceM(tripKm);
+      // ponytail: temporary cap, the 1% rule is too wide on big trips; replace with the redesigned allowance
+      const allowanceM = Math.min(detourAllowanceM(tripKm), CORRIDOR_CAP_M);
 
-      const raw = await deps.pois.near({ line: line.value });
+      const raw = await deps.pois.near({
+        line: line.value,
+        marginM: allowanceM,
+      });
       if (!raw.ok) {
         return {
           ok: false as const,

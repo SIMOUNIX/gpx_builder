@@ -449,6 +449,14 @@ test("find_pois lists the POIs within the allowance, grouped, nearest first", as
   expect(JSON.stringify(out)).not.toContain("2.71"); // no coordinates
 });
 
+test("find_pois asks for a corridor of the detour allowance, capped at 500 m", async () => {
+  const { tools, pois, stageId } = await routedStage();
+  await run(tools.find_pois, { stageId });
+  expect((pois as ReturnType<typeof fakePois>).calls[0]).toMatchObject({
+    marginM: 200,
+  });
+});
+
 test("find_pois stores what it found in the registry, with the water tier", async () => {
   const { tools, trips, stageId } = await routedStage();
   await run(tools.find_pois, { stageId });

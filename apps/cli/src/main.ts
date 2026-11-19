@@ -236,7 +236,7 @@ export async function main(
     trips,
     geocode: createPhotonGeocoder({ cache }),
     routing: createOrsRouter({ apiKey: orsKey, cache }),
-    pois: createOverpassPois({ cache }),
+    pois: createOverpassPois(),
     chats,
     chatId,
     model: model.value,

@@ -209,7 +209,7 @@ Each directory can be overridden on its own with `GPX_BUILDER_DATA_DIR`, `GPX_BU
 
 <cache>/
   <sha256 of key>.json     one entry per file: { expiresAt, value }; expired or damaged = miss
-  pois/<z12-x-y>.geojson   Overpass results per tile + fetchedAt
+  pois/                    not used: POIs are fetched per stage with no cache (§12.3)
   elevation/…              decoded terrain samples
 ```
 
@@ -358,7 +358,7 @@ M1 tool details (as built):
 - `submit_brief(brief, name?)`: accepts a partial `BriefDraft`, merges it over the stored one (top-level fields), checks every `placeId` is in the registry, optionally sets the trip name, and answers `{ complete, missing }`. A trip starts as "Untitled trip" with an empty brief; the CLI creates the trip and its chat together.
 - `submit_itinerary(stages)`: refused until the brief is complete. Stages are `{ from, to, via?, overnight? }` of `placeId`s; it replaces all stages and waypoints, mints stage and waypoint ids, and shares one waypoint between stages that meet at the same place.
 - `route(stageId)`: returns km, D+, D−, `routeId`. The DIN 33466 walking time is stored in the stage stats (`walkingMin`, filled by the trip service from our own geometry) and shown in the digest; snap distances are stored on the stage but not returned yet.
-- `find_pois(stageId, kinds?)`: refused with `unrouted` (the ids) until every stage is routed, because the detour allowance is 1% of the whole trip's length (min 200 m, max 2 km). It queries `PoiPort` for the tiles around the stage's route, classifies the elements in `core` (`classifyPoi`), keeps those whose straight-line distance to the route is within the allowance, and saves all of them in `trip.registry.pois` (`name`, `kind`, `tier` for water, `lngLat`). A waterway is stored at its point closest to the route; a crossing is at distance 0. The model gets the top 5 per group (`water.potable`, `water.treatable`, `water.unknown`, `food`, `picnic`, `resupply`) and the number found. No detour is measured yet. An unnamed POI is labelled by what it is ("Drinking water", "Bakery"). If Overpass is down the tool returns a plain message and changes nothing.
+- `find_pois(stageId, kinds?)`: refused with `unrouted` (the ids) until every stage is routed, because the detour allowance is 1% of the whole trip's length (min 200 m, max 2 km). It queries `PoiPort` for the tiles within the allowance of the stage's route, classifies the elements in `core` (`classifyPoi`), keeps those whose straight-line distance to the route is within the allowance, and saves all of them in `trip.registry.pois` (`name`, `kind`, `tier` for water, `lngLat`). A waterway is stored at its point closest to the route; a crossing is at distance 0. The model gets the top 5 per group (`water.potable`, `water.treatable`, `water.unknown`, `food`, `picnic`, `resupply`) and the number found. No detour is measured yet. An unnamed POI is labelled by what it is ("Drinking water", "Bakery"). If Overpass is down the tool returns a plain message and changes nothing.
 - Tool results that did nothing are `{ ok: false, issues }` (each issue has the input `path`) or `{ ok: false, error }` for adapter and store failures.
 - `TurnHooks` also pass the `toolCallId` (third argument of `onToolCall` and `onToolResult`) so a host can pair a call with its result.
 - `export_trip` is client-side like `ask_user` (no `execute`, no SDK approval). The turn stops with a pending `export_trip` call, the host asks the user `y/N`, and the typed line is the next `runTurn` input. See "Export approval" below.
@@ -478,10 +478,11 @@ Tolerances and thresholds live in one `rules.ts` table in `core`.
 
 ### 12.3 POIs (Overpass)
 
-- **Port:** `PoiPort.near({ line })` returns the raw OSM elements (`poiId`, tags, geometry) of every tile the route passes through, plus a margin of 2 km (the largest detour allowance). Classification, distances to the route and the allowance live in `core`, not in the adapter.
-- **Tiles:** fixed z12 (about 6.5 km at 48°N). One combined query per tile for all POI kinds. `out center` for everything except stream and river ways, which use `out geom` so the point closest to the route can be found.
-- **Cache:** per tile, time-to-live 21 days (the middle of 2–4 weeks). An answer carrying an Overpass `runtime error` remark is partial and never cached.
-- **Etiquette:** one request at a time from a queue, identifying `User-Agent`, retries with backoff on 5xx, waiting out 429 (`Retry-After`, else 5 s then 10 s), configurable endpoint.
+- **Port:** `PoiPort.near({ line, marginM })` returns the raw OSM elements (`poiId`, tags, geometry) within `marginM` metres of the route. Classification, distances to the route and the allowance live in `core`, not in the adapter.
+- **Query:** one Overpass request per stage: every kind in one query, each statement limited by `around:<marginM>` along the route. The route is first simplified (a point kept every max(100 m, margin / 4)), about 200 points for a 20 km stage. `out center` for everything except stream and river ways, which use `out geom` so the point closest to the route can be found. Fallback if this is still too slow: one bounding box per stage.
+- **Corridor width:** the tool passes the detour allowance capped at 500 m. The cap is temporary: the 1% rule gives 1.55 km on a 155 km trip, which is too wide for public Overpass. The cap goes when the allowance is redesigned.
+- **No cache** for now: the app is mostly used online and a search can be repeated.
+- **Etiquette:** one request at a time from a queue, identifying `User-Agent`, configurable endpoint. The default is `overpass.openstreetmap.fr` (worldwide data): measured from a real machine, `overpass-api.de` took 40–50 s or answered 502 for any query, and `overpass.private.coffee` / `overpass.kumi.systems` answered 504 after 30–120 s. A request is cut after 90 s (the server's own timeout is 80 s) with a clear "unavailable" message. A 5xx waits 5 s then 15 s before giving up; a 429 waits `Retry-After` (else 5 s). Timeouts and an Overpass `runtime error` remark (a partial answer) are not retried.
 - **Kinds:** water; food (`restaurant`, `cafe`, `fast_food`); picnic (`tourism=picnic_site`, `leisure=picnic_table`); resupply (`supermarket`, `convenience`, `bakery`).
 - **Water tiers:**
 

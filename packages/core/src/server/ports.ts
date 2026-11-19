@@ -56,8 +56,8 @@ export type RawPoi = {
 };
 
 export interface PoiPort {
-  /** Every element in the map tiles the route (plus a margin) passes through. */
-  near(q: { line: Position3[] }): Promise<Result<RawPoi[]>>;
+  /** Every element within `marginM` metres of the route. */
+  near(q: { line: Position3[]; marginM: number }): Promise<Result<RawPoi[]>>;
 }
 
 /** Owns the trip folders on disk. Synchronous: one process, one writer. */

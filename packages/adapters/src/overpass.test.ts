@@ -1,50 +1,55 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import type { Position3 } from "@gpx-builder/core/server";
-import { createOverpassPois, tilesAlong } from "./overpass";
-import { fakeFetch, json, memoryCache, noWait } from "./helpers.test-util";
+import { createOverpassPois, queryFor, simplify } from "./overpass";
+import { fakeFetch, json, noWait } from "./helpers.test-util";
 
-const tile = JSON.parse(
+const recorded = JSON.parse(
   readFileSync(
     new URL("./fixtures/overpass-tile.json", import.meta.url),
     "utf8",
   ),
 );
-const empty = { elements: [] };
 
 // A short walk in the Fontainebleau forest.
 const line: Position3[] = [
   [2.6, 48.4, 0],
   [2.601, 48.4005, 0],
 ];
+const MARGIN_M = 200;
 
-const make = (f: ReturnType<typeof fakeFetch>, cache = memoryCache()) =>
+const make = (f: ReturnType<typeof fakeFetch>) =>
   createOverpassPois({
-    cache,
     http: { fetch: f.fn, ...noWait },
     endpoint: "https://overpass.test/api",
   });
 
-/** Answers every tile of `line` with the same recorded response. */
-const tiles = tilesAlong(line).length;
-const answers = (...first: Response[]) => [
-  ...first,
-  ...Array.from({ length: tiles - first.length }, () => json(empty)),
-];
+test("simplify keeps both ends and drops points closer than the spacing", () => {
+  // about 11 m between points, 100 m spacing
+  const dense: Position3[] = Array.from({ length: 50 }, (_, i) => [
+    2.6 + i * 0.00015,
+    48.4,
+    0,
+  ]);
+  const out = simplify(dense, 100);
+  expect(out[0]).toBe(dense[0]);
+  expect(out.at(-1)).toBe(dense.at(-1));
+  expect(out.length).toBeLessThan(12);
+  expect(simplify(line, 100)).toEqual(line);
+});
 
-test("a short route needs the tiles around it, a long one needs more", () => {
-  expect(tiles).toBe(2);
-  const long: Position3[] = [
-    [2.6, 48.4, 0],
-    [2.8, 48.4, 0], // 15 km east, one straight segment
-  ];
-  const xs = new Set(tilesAlong(long).map((t) => t.x));
-  expect(xs.size).toBeGreaterThanOrEqual(3);
+test("the query is one corridor of the margin around the route", () => {
+  const q = queryFor(line, MARGIN_M);
+  expect(q).toContain("(around:200,48.40000,2.60000,48.40050,2.60100)");
+  expect(q).toContain("timeout:80");
+  expect(q).not.toContain("bbox");
 });
 
 test("maps nodes, ways and a waterway with its geometry", async () => {
-  const f = fakeFetch(...answers(json(tile)));
-  const r = await make(f).near({ line });
+  const r = await make(fakeFetch(json(recorded))).near({
+    line,
+    marginM: MARGIN_M,
+  });
   if (!r.ok) throw new Error(r.error.message);
 
   expect(r.value).toHaveLength(30);
@@ -59,56 +64,73 @@ test("maps nodes, ways and a waterway with its geometry", async () => {
   expect(cafeWay.geometry).toHaveLength(1); // its centre
 });
 
-test("asks politely: one POST per tile, one at a time, with a User-Agent", async () => {
-  const f = fakeFetch(...answers(json(tile)));
-  await make(f).near({ line });
-  expect(f.calls).toHaveLength(tiles);
-  for (const c of f.calls) {
-    expect(c.init.method).toBe("POST");
-    expect((c.init.headers as Record<string, string>)["User-Agent"]).toBe(
-      "gpx-builder",
-    );
-    expect(String(c.init.body)).toContain("data=");
-  }
-});
-
-test("the second search over the same tiles comes from the cache", async () => {
-  const f = fakeFetch(...answers(json(tile)));
-  const cache = memoryCache();
-  const pois = make(f, cache);
-  const a = await pois.near({ line });
-  const b = await pois.near({ line });
-  expect(b).toEqual(a);
-  expect(f.calls).toHaveLength(tiles);
+test("asks politely: one POST per stage, with a User-Agent", async () => {
+  const f = fakeFetch(json(recorded));
+  await make(f).near({ line, marginM: MARGIN_M });
+  expect(f.calls).toHaveLength(1);
+  const init = f.calls[0]!.init;
+  expect(init.method).toBe("POST");
+  expect((init.headers as Record<string, string>)["User-Agent"]).toBe(
+    "gpx-builder",
+  );
+  expect(String(init.body)).toContain("data=");
 });
 
 test("a rate limit is waited out and retried", async () => {
   const waits: number[] = [];
-  const f = fakeFetch(
-    json({}, 429, { "retry-after": "7" }),
-    ...answers(json(tile)),
-  );
+  const f = fakeFetch(json({}, 429, { "retry-after": "7" }), json(recorded));
   const pois = createOverpassPois({
-    cache: memoryCache(),
     http: { fetch: f.fn, sleep: async (ms) => void waits.push(ms) },
   });
-  const r = await pois.near({ line });
-  expect(r.ok).toBe(true);
-  expect(waits).toContain(7000);
+  expect((await pois.near({ line, marginM: MARGIN_M })).ok).toBe(true);
+  expect(waits).toEqual([7000]);
 });
 
-test("Overpass staying busy is an unavailable error, and nothing is cached", async () => {
+test("a server error is retried after 5 s then 15 s, then given up", async () => {
+  const waits: number[] = [];
+  const f = fakeFetch(json({}, 502), json({}, 502), json({}, 502));
+  const pois = createOverpassPois({
+    http: { fetch: f.fn, sleep: async (ms) => void waits.push(ms) },
+  });
+  const r = await pois.near({ line, marginM: MARGIN_M });
+  expect(r).toMatchObject({ ok: false, error: { kind: "unavailable" } });
+  expect(f.calls).toHaveLength(3);
+  expect(waits).toEqual([5000, 15000]);
+});
+
+test("a request that takes too long is not retried", async () => {
+  const slow = new DOMException("slow", "TimeoutError");
+  const f = fakeFetch(slow, json(recorded));
+  const r = await make(f).near({ line, marginM: MARGIN_M });
+  expect(r).toMatchObject({ ok: false, error: { kind: "timeout" } });
+  expect(f.calls).toHaveLength(1);
+});
+
+test("Overpass staying busy is an unavailable error, not retried", async () => {
   const f = fakeFetch(
     json({ elements: [], remark: "runtime error: Query timed out" }),
   );
-  const cache = memoryCache();
-  const r = await make(f, cache).near({ line });
+  const r = await make(f).near({ line, marginM: MARGIN_M });
   expect(r).toMatchObject({ ok: false, error: { kind: "unavailable" } });
-  expect(cache.size()).toBe(0);
+  expect(f.calls).toHaveLength(1);
 });
 
-test("a server error gives an unavailable error", async () => {
-  const f = fakeFetch(json({}, 504), json({}, 504), json({}, 504));
-  const r = await make(f).near({ line });
-  expect(r).toMatchObject({ ok: false, error: { kind: "unavailable" } });
+test("calls are made one at a time", async () => {
+  let open = 0;
+  let most = 0;
+  const pois = createOverpassPois({
+    http: {
+      fetch: async () => {
+        most = Math.max(most, ++open);
+        await new Promise((r) => setTimeout(r, 5));
+        open--;
+        return json({ elements: [] });
+      },
+    },
+  });
+  await Promise.all([
+    pois.near({ line, marginM: MARGIN_M }),
+    pois.near({ line, marginM: MARGIN_M }),
+  ]);
+  expect(most).toBe(1);
 });
