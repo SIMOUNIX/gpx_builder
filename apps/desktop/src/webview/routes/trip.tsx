@@ -62,7 +62,9 @@ export function TripView() {
       <SidebarInset className="h-screen">
         <header className="flex items-center gap-3 border-b px-4 py-3">
           <SidebarTrigger />
-          <h1 className="font-serif text-2xl tracking-tight">{trip.name}</h1>
+          <h1 className="font-serif text-2xl tracking-tight italic">
+            {trip.name}
+          </h1>
           <div className="ml-auto flex gap-1.5">
             {phases.map((p) => (
               <span

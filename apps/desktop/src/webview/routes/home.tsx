@@ -61,6 +61,7 @@ export function Home() {
           size="icon"
           className="bg-card/80 pointer-events-auto ml-auto rounded-full backdrop-blur"
           aria-label="Settings"
+          onClick={() => navigate({ to: "/settings" })}
         >
           <Settings />
         </Button>

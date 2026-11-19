@@ -9,8 +9,10 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { queryClient } from "./api";
+import { startTheme } from "./hooks/use-theme";
 import "./index.css";
 import { Home } from "./routes/home";
+import { SettingsPage } from "./routes/settings";
 import { TripView } from "./routes/trip";
 
 const root = createRootRoute({ component: Outlet });
@@ -25,6 +27,11 @@ const routeTree = root.addChildren([
     }),
     component: TripView,
   }),
+  createRoute({
+    getParentRoute: () => root,
+    path: "/settings",
+    component: SettingsPage,
+  }),
 ]);
 const router = createRouter({ routeTree });
 declare module "@tanstack/react-router" {
@@ -33,6 +40,7 @@ declare module "@tanstack/react-router" {
   }
 }
 
+startTheme();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
