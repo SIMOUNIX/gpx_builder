@@ -77,7 +77,10 @@ export function AppSidebar({ activeTripId }: { activeTripId: string }) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <SidebarMenuButton className="caps">
+        <SidebarMenuButton
+          className="caps"
+          onClick={() => navigate({ to: "/settings" })}
+        >
           <Settings /> Settings
         </SidebarMenuButton>
       </SidebarFooter>

@@ -25,6 +25,7 @@ import {
   contourLayers,
   outdoorStyle,
 } from "./outdoor-style";
+import { useIsDark } from "../hooks/use-theme";
 import { PlaceSearch } from "./place-search";
 import { BANDS } from "./profile-geo";
 
@@ -32,8 +33,6 @@ export type { MapRoute };
 
 // maplibre-gl 6 ships its worker as a separate file; Vite must be told where it is.
 setWorkerUrl(workerUrl);
-
-const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
 
 // AWS Terrain Tiles (Terrarium encoding, no key) feed the hillshade layer.
 const TERRAIN_URL =
@@ -92,6 +91,8 @@ export function MapView({
   const shaded = useRef(hillshade); // read on style load, like `latest`
   const [contours, setContours] = useState(false); // off by default, not saved
   const contoured = useRef(contours); // read on style load
+  const dark = useIsDark();
+  const darkRef = useRef(dark); // read on style load and at map creation
   const [terrain3d, setTerrain3d] = useState(false); // off by default, not saved
   const is3d = useRef(terrain3d); // read on style load, which wipes terrain
   const [offline, setOffline] = useState(false);
@@ -102,7 +103,7 @@ export function MapView({
       container: el.current!,
       interactive,
       attributionControl: interactive ? { compact: true } : false,
-      style: outdoorStyle(dark(), interactive), // built in code: no style fetch, so a basemap outage only leaves tiles missing
+      style: outdoorStyle(darkRef.current, interactive), // built in code: no style fetch, so a basemap outage only leaves tiles missing
       center: PARIS,
       zoom: 10,
     });
@@ -133,7 +134,7 @@ export function MapView({
           ],
           maxzoom: 14, // beyond this MapLibre overzooms the vector tiles
         });
-        for (const l of contourLayers(dark(), contoured.current))
+        for (const l of contourLayers(darkRef.current, contoured.current))
           m.addLayer(l, labels);
         if (is3d.current)
           m.setTerrain({ source: "terrain", exaggeration: EXAGGERATION });
@@ -186,6 +187,13 @@ export function MapView({
     }
     dot.current.setLngLat(marker).addTo(m);
   }, [marker]);
+
+  useEffect(() => {
+    if (darkRef.current === dark) return; // the map was created with this theme
+    darkRef.current = dark;
+    // Re-fires `style.load`, which re-adds terrain, contours and routes.
+    map.current?.setStyle(outdoorStyle(dark, interactive));
+  }, [dark, interactive]);
 
   useEffect(() => {
     shaded.current = hillshade;
