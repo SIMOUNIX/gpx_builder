@@ -24,8 +24,12 @@ const WATER_LABEL: Record<WaterTier, string> = {
 
 /** A POI without a name is still listed, by what it is. */
 function labelOf(tags: Record<string, string>, c: PoiClass): string {
-  if (tags.name) return tags.name;
-  if (c.tier) return WATER_LABEL[c.tier];
+  if (tags.name) {
+    return tags.name;
+  }
+  if (c.tier) {
+    return WATER_LABEL[c.tier];
+  }
   const what = tags.amenity ?? tags.shop ?? tags.tourism ?? tags.leisure ?? "";
   const text = what.replace(/_/g, " ");
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -43,7 +47,9 @@ export const findPois = (deps: AgentDeps) =>
     }),
     async execute({ stageId, kinds }) {
       const loaded = deps.trips.load(deps.tripId);
-      if (!loaded.ok) return failStore(loaded.error);
+      if (!loaded.ok) {
+        return failStore(loaded.error);
+      }
       const trip = loaded.value;
 
       const stage = trip.stages.find((s) => s.id === stageId);
@@ -62,7 +68,9 @@ export const findPois = (deps: AgentDeps) =>
       }
 
       const line = deps.trips.readRoute(deps.tripId, stage.routeId);
-      if (!line.ok) return failStore(line.error);
+      if (!line.ok) {
+        return failStore(line.error);
+      }
 
       const tripKm = trip.stages.reduce((n, s) => n + (s.stats?.km ?? 0), 0);
       // ponytail: temporary cap, the 1% rule is too wide on big trips; replace with the redesigned allowance
@@ -82,9 +90,13 @@ export const findPois = (deps: AgentDeps) =>
       const wanted = new Set<string>(kinds ?? PoiKind);
       const near = raw.value.flatMap((p) => {
         const c = classifyPoi(p.tags);
-        if (!c || !wanted.has(c.kind)) return [];
+        if (!c || !wanted.has(c.kind)) {
+          return [];
+        }
         const at = locateOnRoute(p.geometry, line.value);
-        if (at.distanceM > allowanceM) return [];
+        if (at.distanceM > allowanceM) {
+          return [];
+        }
         return [{ p, c, at, name: labelOf(p.tags, c) }];
       });
       near.sort((a, b) => a.at.distanceM - b.at.distanceM);
@@ -92,7 +104,9 @@ export const findPois = (deps: AgentDeps) =>
       // Parallel tool calls in one step share the trip file: reload after the
       // await and save with no await in between, or the last stale save wins.
       const fresh = deps.trips.load(deps.tripId);
-      if (!fresh.ok) return failStore(fresh.error);
+      if (!fresh.ok) {
+        return failStore(fresh.error);
+      }
       const pois = { ...fresh.value.registry.pois };
       for (const { p, c, at, name } of near) {
         pois[p.poiId] = {
@@ -106,7 +120,9 @@ export const findPois = (deps: AgentDeps) =>
         ...fresh.value,
         registry: { ...fresh.value.registry, pois },
       });
-      if (!saved.ok) return failStore(saved.error);
+      if (!saved.ok) {
+        return failStore(saved.error);
+      }
 
       const groups: Record<string, Found[]> = {};
       for (const { p, c, at, name } of near) {

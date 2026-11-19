@@ -22,11 +22,15 @@ const TREATABLE_WATERWAY = new Set(["stream", "river", "waterfall"]);
 export function classifyPoi(
   tags: Record<string, string>,
 ): PoiClass | undefined {
-  if (FOOD.has(tags.amenity ?? "")) return { kind: "food" };
+  if (FOOD.has(tags.amenity ?? "")) {
+    return { kind: "food" };
+  }
   if (tags.tourism === "picnic_site" || tags.leisure === "picnic_table") {
     return { kind: "picnic" };
   }
-  if (RESUPPLY.has(tags.shop ?? "")) return { kind: "resupply" };
+  if (RESUPPLY.has(tags.shop ?? "")) {
+    return { kind: "resupply" };
+  }
 
   const water = (tier: WaterTier): PoiClass => ({ kind: "water", tier });
 
@@ -37,11 +41,17 @@ export function classifyPoi(
   const tap =
     tags.amenity === "drinking_water" || tags.man_made === "water_tap";
 
-  if (natural && tags.drinking_water !== "yes") return water("treatable");
+  if (natural && tags.drinking_water !== "yes") {
+    return water("treatable");
+  }
   if (tap || tags.drinking_water === "yes") {
-    if (tags.drinking_water === "no") return undefined;
+    if (tags.drinking_water === "no") {
+      return undefined;
+    }
     // ponytail: seasonal sources fall to unknown, not dropped; they may only be off part of the year
-    if (tags.seasonal === "yes") return water("unknown");
+    if (tags.seasonal === "yes") {
+      return water("unknown");
+    }
     const potable =
       tags.drinking_water === "yes" || tags.amenity === "drinking_water";
     return water(potable ? "potable" : "unknown");
@@ -74,7 +84,9 @@ function crossing(a: XY, b: XY, c: XY, d: XY) {
   const r: XY = [b[0] - a[0], b[1] - a[1]];
   const s: XY = [d[0] - c[0], d[1] - c[1]];
   const den = r[0] * s[1] - r[1] * s[0];
-  if (den === 0) return undefined;
+  if (den === 0) {
+    return undefined;
+  }
   const t = ((c[0] - a[0]) * s[1] - (c[1] - a[1]) * s[0]) / den;
   const u = ((c[0] - a[0]) * r[1] - (c[1] - a[1]) * r[0]) / den;
   return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? { t, u } : undefined;
@@ -113,7 +125,9 @@ export function locateOnRoute(
 
   let best = { point: geo[0]!, d: Infinity, alongM: 0 };
   const consider = (point: XY, d: number, alongM: number) => {
-    if (d < best.d) best = { point, d, alongM };
+    if (d < best.d) {
+      best = { point, d, alongM };
+    }
   };
   const onGeo = (j: number, t: number): XY => {
     const g = geo[j]!;
@@ -131,7 +145,9 @@ export function locateOnRoute(
     }
     for (let j = 0; j + 1 < geo.length; j++) {
       const hit = crossing(a, b, geo[j]!, geo[j + 1]!);
-      if (hit) consider(onGeo(j, hit.u), 0, along(i, hit.t));
+      if (hit) {
+        consider(onGeo(j, hit.u), 0, along(i, hit.t));
+      }
     }
   }
   // A route vertex can be closer to the middle of a waterway segment than any of its vertices.

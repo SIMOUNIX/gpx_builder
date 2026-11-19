@@ -30,10 +30,14 @@ export function simplify(
   const kept: Position3[] = [];
   for (const p of line) {
     const last = kept.at(-1);
-    if (!last || haversineM(last, p) >= minM) kept.push(p);
+    if (!last || haversineM(last, p) >= minM) {
+      kept.push(p);
+    }
   }
   const end = line.at(-1);
-  if (end && kept.at(-1) !== end) kept.push(end);
+  if (end && kept.at(-1) !== end) {
+    kept.push(end);
+  }
   return kept;
 }
 
@@ -77,17 +81,22 @@ const Response = z.object({
 /** Elements we can't place or id are dropped. */
 function toRawPoi(raw: unknown): RawPoi | undefined {
   const e = Element.safeParse(raw);
-  if (!e.success) return undefined;
+  if (!e.success) {
+    return undefined;
+  }
   const { type, id, tags, lat, lon, center, geometry } = e.data;
-  const points: LngLat[] = geometry
-    ? geometry.map((g) => [g.lon, g.lat])
-    : lat !== undefined && lon !== undefined
-      ? [[lon, lat]]
-      : center
-        ? [[center.lon, center.lat]]
-        : [];
+  let points: LngLat[] = [];
+  if (geometry) {
+    points = geometry.map((g) => [g.lon, g.lat]);
+  } else if (lat !== undefined && lon !== undefined) {
+    points = [[lon, lat]];
+  } else if (center) {
+    points = [[center.lon, center.lat]];
+  }
   const poiId = PoiId.safeParse(`osm:${type}/${id}`);
-  if (!tags || points.length === 0 || !poiId.success) return undefined;
+  if (!tags || points.length === 0 || !poiId.success) {
+    return undefined;
+  }
   return { poiId: poiId.data, tags, geometry: points };
 }
 
@@ -114,12 +123,12 @@ export function createOverpassPois(
       );
       if (!res.ok) {
         // A timeout is not retried: the server was already too slow once.
-        const wait =
-          res.error.kind === "rate-limit"
-            ? (res.error.retryAfterSec ?? RATE_LIMIT_WAIT_SEC)
-            : res.error.kind === "unavailable"
-              ? SERVER_ERROR_WAITS_SEC[attempt]
-              : undefined;
+        let wait: number | undefined;
+        if (res.error.kind === "rate-limit") {
+          wait = res.error.retryAfterSec ?? RATE_LIMIT_WAIT_SEC;
+        } else if (res.error.kind === "unavailable") {
+          wait = SERVER_ERROR_WAITS_SEC[attempt];
+        }
         if (wait === undefined || attempt >= SERVER_ERROR_WAITS_SEC.length) {
           return res;
         }
